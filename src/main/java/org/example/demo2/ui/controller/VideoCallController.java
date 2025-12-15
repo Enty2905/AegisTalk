@@ -361,7 +361,19 @@ public class VideoCallController {
         if (muteIndicator != null) {
             muteIndicator.setVisible(isMuted);
         }
-        System.out.println("[VideoCallController] Mic " + (isMuted ? "muted" : "unmuted"));
+        
+        // RELEASE/ACQUIRE quyền microphone ngay lập tức
+        if (isMuted) {
+            // TẮT MIC - Đóng microphone để release quyền cho app khác
+            stopMicrophoneCapture();
+            System.out.println("[VideoCallController] Mic muted - microphone released");
+        } else {
+            // BẬT MIC - Mở lại microphone nếu đang trong cuộc gọi
+            if (isInCall && videoStreamClient != null) {
+                restartMicrophoneCapture();
+                System.out.println("[VideoCallController] Mic unmuted - microphone reopened");
+            }
+        }
     }
     
     @FXML
@@ -380,20 +392,10 @@ public class VideoCallController {
         System.out.println("[VideoCallController] Camera " + (isCameraOn ? "on" : "off"));
         
         if (!isCameraOn) {
-            // TẮT CAMERA
-            // Chỉ đóng webcam hoàn toàn nếu đang trong cuộc gọi active (streaming)
-            // Nếu chỉ đang preview (chưa streaming), chỉ ẩn preview mà không đóng webcam
-            boolean isStreaming = (videoStreamClient != null);
-            
-            if (isStreaming) {
-                // Đang streaming - đóng webcam để release quyền
-                System.out.println("[VideoCallController] Camera off during streaming - stopping webcam capture");
-                stopWebcamCapture();
-            } else {
-                // Chưa streaming (đang preview) - chỉ dừng capture thread, KHÔNG đóng webcam
-                System.out.println("[VideoCallController] Camera off during preview - pausing capture only");
-                // Flag isCameraOn = false sẽ khiến capture thread tự tạm dừng
-            }
+            // TẮT CAMERA - LUÔN đóng webcam để release quyền cho app khác
+            // Điều này quan trọng khi test 2 client trên cùng 1 máy
+            System.out.println("[VideoCallController] Camera off - releasing webcam immediately");
+            stopWebcamCapture();
             
             Platform.runLater(() -> {
                 // Hiển thị màn hình đen trên local video
@@ -490,20 +492,17 @@ public class VideoCallController {
                         byte[] audioData = new byte[frameData.length - 6];
                         System.arraycopy(frameData, 6, audioData, 0, audioData.length);
                         audioReceivedCount[0]++;
-                        // Log mỗi 50 packets để debug
-                        if (audioReceivedCount[0] % 50 == 0) {
-                            System.out.println("[VideoCallController] ✓ Received " + audioReceivedCount[0] + " AUDIO packets, latest: " + audioData.length + " bytes");
+                        // Log mỗi 200 packets để giảm spam (khoảng 4 giây)
+                        if (audioReceivedCount[0] % 200 == 0) {
+                            System.out.println("[VideoCallController] ✓ Received " + audioReceivedCount[0] + " AUDIO packets");
                         }
                         playRemoteAudio(audioData);
                     } else {
-                        // Video packet - hiển thị
-                        Platform.runLater(() -> {
-                            displayRemoteVideo(frameData);
-                        });
+                        // Video packet - displayRemoteVideo đã có throttle và Platform.runLater bên trong
+                        displayRemoteVideo(frameData);
                     }
-                } else {
-                    System.out.println("[VideoCallController] Ignoring frame from wrong session: " + sessionId + " (expected: " + currentCallSessionId + ")");
                 }
+                // Không log frame sai session để tránh spam
             });
             System.out.println("[VideoCallController] Started receiving frames (video + audio)");
             
@@ -1106,6 +1105,9 @@ public class VideoCallController {
     /**
      * Hiển thị remote video frame.
      */
+    private int remoteFrameCount = 0;
+    private long lastRemoteFrameUpdateTime = 0;
+    
     private void displayRemoteVideo(byte[] frameData) {
         if (remoteVideo == null) {
             return;
@@ -1119,8 +1121,19 @@ public class VideoCallController {
         
         // Update lastRemoteFrameTime ngay khi nhận được frame hợp lệ
         lastRemoteFrameTime = System.currentTimeMillis();
+        remoteFrameCount++;
         
-        System.out.println("[VideoCallController] Displaying REMOTE video frame from " + otherUserName + ": " + frameData.length + " bytes");
+        // Throttle: Chỉ update UI tối đa 30 FPS để tránh overload JavaFX thread
+        long now = System.currentTimeMillis();
+        if (now - lastRemoteFrameUpdateTime < 33) {
+            return; // Bỏ qua frame này để giảm tải
+        }
+        lastRemoteFrameUpdateTime = now;
+        
+        // Log mỗi 30 frames thay vì mỗi frame
+        if (remoteFrameCount % 30 == 0) {
+            System.out.println("[VideoCallController] Received " + remoteFrameCount + " remote video frames from " + otherUserName);
+        }
         
         try {
             // Decode JPEG bytes thành BufferedImage
@@ -1452,15 +1465,12 @@ public class VideoCallController {
                 byte[] buffer = new byte[640];
                 int packetCount = 0;
                 
-                while (audioRunning && microphone != null && microphone.isOpen()) {
-                    if (isMuted) {
-                        // Nếu mute, đọc và bỏ đi data từ mic để tránh buffer overflow
-                        microphone.read(buffer, 0, buffer.length);
-                        Thread.sleep(5);
-                        continue;
-                    }
+                // Lấy reference local để tránh null pointer khi mic bị close giữa chừng
+                TargetDataLine localMic = microphone;
+                while (audioRunning && localMic != null && localMic.isOpen()) {
+                    // Không cần check isMuted vì khi mute, thread này sẽ bị dừng và mic bị đóng
                     
-                    int bytesRead = microphone.read(buffer, 0, buffer.length);
+                    int bytesRead = localMic.read(buffer, 0, buffer.length);
                     if (bytesRead > 0 && videoStreamClient != null) {
                         // Tính audio level để debug (check xem mic có capture được sound không)
                         int maxAmplitude = 0;
@@ -1486,9 +1496,9 @@ public class VideoCallController {
                         videoStreamClient.sendFrame(audioPacket);
                         
                         packetCount++;
-                        if (packetCount % 100 == 0) {
-                            // Log audio level để biết mic có hoạt động không
-                            System.out.println("[VideoCallController] Sent " + packetCount + " audio packets, level: " + maxAmplitude + "/32768");
+                        // Log mỗi 500 packets (khoảng 10 giây) để giảm spam
+                        if (packetCount % 500 == 0) {
+                            System.out.println("[VideoCallController] Sent " + packetCount + " audio packets");
                         }
                     }
                 }
@@ -1518,6 +1528,55 @@ public class VideoCallController {
         }, "Audio-Send");
         audioSendThread.setDaemon(true);
         audioSendThread.start();
+    }
+    
+    /**
+     * Dừng và đóng microphone để release quyền (khi mute).
+     */
+    private void stopMicrophoneCapture() {
+        System.out.println("[VideoCallController] Stopping microphone capture...");
+        
+        // Dừng thread capture trước
+        Thread threadToStop = audioSendThread;
+        audioSendThread = null;
+        
+        if (threadToStop != null && threadToStop.isAlive()) {
+            threadToStop.interrupt();
+            try {
+                threadToStop.join(1000);
+            } catch (InterruptedException e) {
+                // Ignore
+            }
+        }
+        
+        // Đóng microphone để release quyền
+        TargetDataLine micToClose = microphone;
+        microphone = null;
+        
+        if (micToClose != null) {
+            try {
+                micToClose.stop();
+                micToClose.close();
+                System.out.println("[VideoCallController] ✓ Microphone closed and released");
+            } catch (Exception e) {
+                System.err.println("[VideoCallController] Error closing microphone: " + e.getMessage());
+            }
+        }
+    }
+    
+    /**
+     * Mở lại microphone (khi unmute).
+     */
+    private void restartMicrophoneCapture() {
+        System.out.println("[VideoCallController] Restarting microphone capture...");
+        
+        // Đảm bảo audioFormat đã được khởi tạo
+        if (audioFormat == null) {
+            audioFormat = new AudioFormat(16000, 16, 1, true, false);
+        }
+        
+        // Bắt đầu capture lại
+        startMicrophoneCapture();
     }
     
     /**
@@ -1576,21 +1635,15 @@ public class VideoCallController {
             try {
                 speakers.write(audioData, 0, audioData.length);
                 audioPlayCount++;
-                // Log mỗi 50 packets để debug
-                if (audioPlayCount % 50 == 0) {
-                    System.out.println("[VideoCallController] ✓ Played " + audioPlayCount + " audio packets, latest: " + audioData.length + " bytes");
+                // Log mỗi 500 packets (khoảng 10 giây) để giảm spam
+                if (audioPlayCount % 500 == 0) {
+                    System.out.println("[VideoCallController] ✓ Played " + audioPlayCount + " audio packets");
                 }
             } catch (Exception e) {
                 System.err.println("[VideoCallController] Error playing audio: " + e.getMessage());
             }
-        } else {
-            // Debug khi không thể phát audio
-            if (speakers == null) {
-                System.err.println("[VideoCallController] ✗ Cannot play audio: speakers is null");
-            } else if (!speakers.isOpen()) {
-                System.err.println("[VideoCallController] ✗ Cannot play audio: speakers not open");
-            }
         }
+        // Bỏ log debug khi speakers null vì có thể spam
     }
     
     /**
@@ -1693,7 +1746,8 @@ public class VideoCallController {
                         break;
                     }
                     
-                    System.out.println("[VideoCallController] Call status: " + callInfo.status + ", streamingStarted: " + streamingStarted + ", isCaller: " + isCaller);
+                    // Chỉ log khi status thay đổi hoặc mỗi 10 giây
+                    // System.out.println("[VideoCallController] Call status: " + callInfo.status);
                     
                     if ("ACTIVE".equals(callInfo.status)) {
                         if (!streamingStarted) {
