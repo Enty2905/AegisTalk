@@ -1,0 +1,165 @@
+<?xml version="1.0" encoding="UTF-8"?>
+
+<?import javafx.geometry.*?>
+<?import javafx.scene.control.*?>
+<?import javafx.scene.layout.*?>
+
+<BorderPane prefHeight="700" prefWidth="1100" styleClass="root" stylesheets="@../css/theme.css" xmlns="http://javafx.com/javafx/17.0.2-ea" xmlns:fx="http://javafx.com/fxml/1" fx:controller="org.example.demo2.ui.controller.LoginController">
+
+    <!-- HEADER -->
+    <top>
+        <HBox alignment="CENTER_LEFT" spacing="16" styleClass="login-header">
+            <padding>
+                <Insets bottom="16" left="32" right="32" top="20" />
+            </padding>
+
+            <VBox spacing="2">
+                <Label styleClass="app-title" text="AEGISTALK" />
+                <Label styleClass="app-subtitle" />
+            </VBox>
+
+            <Pane HBox.hgrow="ALWAYS" />
+        </HBox>
+    </top>
+
+    <!-- CENTER: MAIN LOGIN AREA -->
+    <center>
+        <HBox alignment="CENTER" spacing="60">
+            <padding>
+                <Insets bottom="48" left="48" right="48" top="40" />
+            </padding>
+
+            <!-- LEFT: BRAND / FEATURES -->
+            <VBox alignment="CENTER_LEFT" maxWidth="420" spacing="24">
+                
+                <VBox spacing="8">
+                    <Label styleClass="hero-title" text="Kết nối an toàn," />
+                    <Label styleClass="hero-title-accent" text="Trò chuyện thông minh." />
+                </VBox>
+
+                <Label maxWidth="380" styleClass="hero-description" text="Chat, gọi voice/video, gửi file và để AI bảo vệ cộng đồng khỏi nội dung độc hại." wrapText="true" />
+
+                <VBox spacing="16" styleClass="feature-list">
+                    <HBox alignment="CENTER_LEFT" spacing="14">
+                        <StackPane styleClass="feature-icon-box">
+                            <Label style="-fx-font-size: 18px; -fx-text-fill: white;" text="💬" />
+                        </StackPane>
+                        <VBox spacing="2">
+                            <Label styleClass="feature-title" text="Real-time Chat" />
+                            <Label styleClass="feature-desc" text="TCP chat rooms với mã hóa end-to-end" />
+                        </VBox>
+                    </HBox>
+                    
+                    <HBox alignment="CENTER_LEFT" spacing="14">
+                        <StackPane styleClass="feature-icon-box">
+                            <Label style="-fx-font-size: 18px; -fx-text-fill: white;" text="📹" />
+                        </StackPane>
+                        <VBox spacing="2">
+                            <Label styleClass="feature-title" text="Video &amp; Voice Call" />
+                            <Label styleClass="feature-desc" text="UDP streaming chất lượng cao" />
+                        </VBox>
+                    </HBox>
+                    
+                    <HBox alignment="CENTER_LEFT" spacing="14">
+                        <StackPane styleClass="feature-icon-box">
+                            <Label style="-fx-font-size: 18px; -fx-text-fill: white;" text="🤖" />
+                        </StackPane>
+                        <VBox spacing="2">
+                            <Label styleClass="feature-title" text="AI Moderation" />
+                            <Label styleClass="feature-desc" text="Gemini / OpenAI kiểm duyệt tự động" />
+                        </VBox>
+                    </HBox>
+                    
+                    <HBox alignment="CENTER_LEFT" spacing="14">
+                        <StackPane styleClass="feature-icon-box">
+                            <Label style="-fx-font-size: 18px; -fx-text-fill: white;" text="📁" />
+                        </StackPane>
+                        <VBox spacing="2">
+                            <Label styleClass="feature-title" text="File Sharing" />
+                            <Label styleClass="feature-desc" text="HTTP file server + MySQL logs" />
+                        </VBox>
+                    </HBox>
+                </VBox>
+            </VBox>
+
+            <!-- RIGHT: LOGIN CARD -->
+            <StackPane>
+                <VBox prefWidth="400" spacing="24" styleClass="login-card">
+
+                    <!-- Card Header -->
+                    <VBox alignment="CENTER" spacing="8">
+                        <Label style="-fx-font-size: 40px; -fx-text-fill: white;" text="👋" />
+                        <Label styleClass="card-title" text="Chào mừng trở lại!" />
+                        <Label styleClass="card-subtitle" text="Đăng nhập để tiếp tục với AegisTalk" />
+                    </VBox>
+
+                    <!-- Form Fields -->
+                    <VBox spacing="16">
+                        <!-- Username -->
+                        <VBox spacing="8">
+                            <Label styleClass="field-label" text="Tên đăng nhập" />
+                            <TextField fx:id="txtUsername" prefHeight="48" promptText="Nhập username của bạn" styleClass="text-input" />
+                        </VBox>
+
+                        <!-- Password -->
+                        <VBox spacing="8">
+                            <Label styleClass="field-label" text="Mật khẩu" />
+                            <PasswordField fx:id="txtPassword" prefHeight="48" promptText="••••••••" styleClass="text-input" />
+                        </VBox>
+
+                        <!-- Display Name (cho đăng ký) -->
+                        <VBox fx:id="displayNameBox" managed="false" spacing="8" visible="false">
+                            <Label styleClass="field-label" text="Tên hiển thị" />
+                            <TextField fx:id="txtDisplayName" prefHeight="48" promptText="Tên sẽ hiển thị với người khác" styleClass="text-input" />
+                        </VBox>
+
+                        <!-- Remember me -->
+                        <HBox alignment="CENTER_LEFT">
+                            <CheckBox fx:id="chkRememberMe" styleClass="checkbox-custom" text="Ghi nhớ đăng nhập" />
+                        </HBox>
+                    </VBox>
+
+                    <!-- Status label -->
+                    <Label fx:id="lblStatus" styleClass="status-label" text="" wrapText="true" />
+
+                    <!-- Buttons -->
+                    <VBox spacing="12">
+                        <!-- Login button -->
+                        <Button fx:id="btnLogin" maxWidth="Infinity" prefHeight="50" styleClass="primary-button" text="🚀  Đăng nhập" />
+
+                        <!-- Register button -->
+                        <Button fx:id="btnRegister" managed="false" maxWidth="Infinity" prefHeight="50" styleClass="primary-button" text="✨  Tạo tài khoản" visible="false" />
+                    </VBox>
+
+                    <!-- Divider -->
+                    <HBox alignment="CENTER" spacing="16">
+                        <Region styleClass="divider-line" HBox.hgrow="ALWAYS" />
+                        <Label styleClass="divider-text" text="hoặc" />
+                        <Region styleClass="divider-line" HBox.hgrow="ALWAYS" />
+                    </HBox>
+
+                    <!-- Toggle Register -->
+                    <HBox alignment="CENTER">
+                        <ToggleButton fx:id="toggleRegister" styleClass="toggle-button" text="Chưa có tài khoản? Đăng ký ngay" />
+                    </HBox>
+
+                </VBox>
+            </StackPane>
+        </HBox>
+    </center>
+
+    <!-- FOOTER -->
+    <bottom>
+        <HBox alignment="CENTER" spacing="24" styleClass="login-footer">
+            <padding>
+                <Insets bottom="20" left="32" right="32" top="16" />
+            </padding>
+            <Label styleClass="footer-text" text="© 2025 AegisTalk" />
+            <Label styleClass="footer-text" text="•" />
+            <Label styleClass="footer-link" text="Privacy Policy" />
+            <Label styleClass="footer-text" text="•" />
+            <Label styleClass="footer-link" text="Terms of Service" />
+        </HBox>
+    </bottom>
+
+</BorderPane>

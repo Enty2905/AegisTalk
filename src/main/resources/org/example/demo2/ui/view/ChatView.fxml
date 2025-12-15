@@ -1,0 +1,142 @@
+<?xml version="1.0" encoding="UTF-8"?>
+
+<?import javafx.geometry.Insets?>
+<?import javafx.geometry.Pos?>
+<?import javafx.scene.control.*?>
+<?import javafx.scene.layout.*?>
+
+<BorderPane xmlns="http://javafx.com/javafx"
+            xmlns:fx="http://javafx.com/fxml"
+            fx:controller="org.example.demo2.ui.controller.ChatController"
+            stylesheets="@../css/theme.css"
+            styleClass="chat-container">
+
+    <!-- =========================
+         TOP: HEADER - ROOM & STATUS
+         ========================= -->
+    <top>
+        <HBox spacing="16"
+              alignment="CENTER_LEFT"
+              styleClass="chat-header">
+            <padding>
+                <Insets top="12" right="20" bottom="12" left="20"/>
+            </padding>
+
+            <!-- Logo + Room info -->
+            <VBox spacing="6" alignment="CENTER_LEFT">
+                <HBox spacing="8" alignment="CENTER_LEFT">
+                    <Label text="AegisTalk"
+                           styleClass="chat-header-label"/>
+                    <Label text="•"
+                           style="-fx-text-fill: #64748b; -fx-font-size: 14px;"/>
+                    <Label text="Chat room"
+                           style="-fx-text-fill: #9ca3af; -fx-font-size: 13px;"/>
+                </HBox>
+
+                <!-- Room input + moderation label -->
+                <HBox spacing="10" alignment="CENTER_LEFT">
+                    <Label text="Room:" styleClass="chat-header-label"/>
+
+                    <!-- GIỮ NGUYÊN fx:id txtRoom -->
+                    <TextField fx:id="txtRoom"
+                               promptText="Nhập tên room (vd: general)"
+                               prefWidth="200"
+                               styleClass="text-input"/>
+
+                    <!-- Label mô tả moderation -->
+                    <Label fx:id="lblModeration"
+                           text="AI moderation: ON"
+                           styleClass="status-label"/>
+                </HBox>
+            </VBox>
+
+            <Pane HBox.hgrow="ALWAYS"/>
+
+            <!-- Status ở góc phải -->
+            <VBox spacing="4" alignment="CENTER_RIGHT">
+                <Label text="Trạng thái kết nối"
+                       style="-fx-text-fill: #9ca3af; -fx-font-size: 11px;"/>
+
+                <!-- GIỮ NGUYÊN fx:id lblStatus + class status-label -->
+                <Label fx:id="lblStatus"
+                       text="Disconnected"
+                       styleClass="status-label disconnected"/>
+            </VBox>
+        </HBox>
+    </top>
+
+    <!-- =========================
+         CENTER: MAIN CONTENT
+         Left: Online
+         Center: Messages
+         ========================= -->
+    <center>
+        <HBox spacing="18">
+            <padding>
+                <Insets top="16" right="20" bottom="0" left="20"/>
+            </padding>
+
+            <!-- LEFT: ONLINE USERS / PRESENCE -->
+            <VBox spacing="10"
+                  alignment="TOP_LEFT"
+                  prefWidth="220"
+                  styleClass="online-panel">
+
+                <Label text="Thành viên online"
+                       styleClass="online-panel-title"/>
+
+                <!-- GIỮ NGUYÊN fx:id lstOnline -->
+                <ListView fx:id="lstOnline"
+                          VBox.vgrow="ALWAYS"
+                          styleClass="online-list"/>
+
+                <!-- Typing indicator -->
+                <!-- GIỮ NGUYÊN fx:id lblTyping -->
+                <Label fx:id="lblTyping"
+                       text=""
+                       visible="true"
+                       managed="true"
+                       styleClass="typing-indicator"/>
+            </VBox>
+
+            <!-- CENTER: CHAT MESSAGES -->
+            <VBox spacing="10" HBox.hgrow="ALWAYS">
+                <Label text="Tin nhắn trong room"
+                       style="-fx-text-fill: #e5e7eb; -fx-font-size: 13px; -fx-font-weight: 500;"/>
+
+                <!-- GIỮ NGUYÊN fx:id lstMessages -->
+                <ListView fx:id="lstMessages"
+                          VBox.vgrow="ALWAYS"
+                          styleClass="chat-messages"/>
+            </VBox>
+        </HBox>
+    </center>
+
+    <!-- =========================
+         BOTTOM: INPUT AREA
+         ========================= -->
+    <bottom>
+        <VBox spacing="8">
+            <padding>
+                <Insets top="0" right="20" bottom="18" left="20"/>
+            </padding>
+
+            <HBox spacing="10"
+                  alignment="CENTER_LEFT"
+                  styleClass="chat-input-area">
+
+                <!-- GIỮ NGUYÊN fx:id txtMessage -->
+                <TextField fx:id="txtMessage"
+                           HBox.hgrow="ALWAYS"
+                           promptText="Nhập tin nhắn của bạn..."
+                           styleClass="chat-input"/>
+
+                <!-- GIỮ NGUYÊN fx:id btnSend -->
+                <Button fx:id="btnSend"
+                        text="Gửi"
+                        styleClass="send-button"/>
+            </HBox>
+        </VBox>
+    </bottom>
+
+</BorderPane>

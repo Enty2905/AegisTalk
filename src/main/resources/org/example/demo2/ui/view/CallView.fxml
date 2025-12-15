@@ -1,0 +1,145 @@
+<?xml version="1.0" encoding="UTF-8"?>
+
+<?import javafx.geometry.Insets?>
+<?import javafx.scene.control.Button?>
+<?import javafx.scene.control.Label?>
+<?import javafx.scene.layout.BorderPane?>
+<?import javafx.scene.layout.HBox?>
+<?import javafx.scene.layout.Pane?>
+<?import javafx.scene.layout.Region?>
+<?import javafx.scene.layout.StackPane?>
+<?import javafx.scene.layout.VBox?>
+
+<BorderPane xmlns="http://javafx.com/javafx"
+            xmlns:fx="http://javafx.com/fxml"
+            fx:controller="org.example.demo2.ui.controller.VideoCallController"
+            stylesheets="@../css/theme.css"
+            styleClass="root call-root"
+            prefWidth="1200"
+            prefHeight="800">
+
+    <!-- TOP: Header gọn gàng -->
+    <top>
+        <HBox spacing="16"
+              alignment="CENTER_LEFT"
+              styleClass="call-header-new">
+            <padding>
+                <Insets top="12" right="24" bottom="12" left="24"/>
+            </padding>
+
+            <!-- Logo + Title -->
+            <HBox spacing="12" alignment="CENTER_LEFT">
+                <Label text="📹" styleClass="call-logo-icon"/>
+                <VBox spacing="2">
+                    <Label text="AegisTalk Video Call" styleClass="call-header-title"/>
+                    <Label text="HD Video • Crystal Clear Audio" styleClass="call-header-subtitle"/>
+                </VBox>
+            </HBox>
+
+            <Pane HBox.hgrow="ALWAYS"/>
+            
+            <!-- Call Duration + Status -->
+            <VBox alignment="CENTER_RIGHT" spacing="2">
+                <Label fx:id="lblCallDuration" text="00:00" styleClass="call-duration-new"/>
+                <Label fx:id="lblCallStatus" text="Đang chờ kết nối..." styleClass="call-status-small"/>
+            </VBox>
+
+            <Button text="✕" styleClass="call-close-btn" onAction="#handleBackToChat"/>
+        </HBox>
+    </top>
+
+    <!-- CENTER: Video layout - Remote lớn ở giữa, Local nhỏ ở góc dưới phải -->
+    <center>
+        <StackPane styleClass="call-video-container">
+            <padding>
+                <Insets top="16" right="24" bottom="16" left="24"/>
+            </padding>
+
+            <!-- Remote video (người bên kia) - Full size ở giữa -->
+            <StackPane fx:id="remoteVideoStack" styleClass="remote-video-wrapper" StackPane.alignment="CENTER">
+                <Region fx:id="remoteVideo" styleClass="remote-video-new" 
+                        prefWidth="800" prefHeight="600"
+                        maxWidth="Infinity" maxHeight="Infinity"/>
+                
+                <!-- Overlay khi chưa có video -->
+                <VBox fx:id="callStatusOverlay" alignment="CENTER" spacing="16" styleClass="video-status-overlay">
+                    <Label text="📞" styleClass="video-status-icon"/>
+                    <Label fx:id="lblRemoteName" text="Remote User" styleClass="video-status-name"/>
+                    <Label text="Vui lòng đợi người kia tham gia cuộc gọi" styleClass="video-status-text"/>
+                </VBox>
+            </StackPane>
+
+            <!-- Local video preview (cam của mình) - Góc phải dưới, nhỏ -->
+            <StackPane alignment="BOTTOM_RIGHT" StackPane.alignment="BOTTOM_RIGHT"
+                       maxWidth="220" maxHeight="170">
+                <padding>
+                    <Insets top="0" right="20" bottom="20" left="0"/>
+                </padding>
+                
+                <StackPane fx:id="localVideoStack" styleClass="local-video-wrapper"
+                           prefWidth="200" prefHeight="150"
+                           maxWidth="200" maxHeight="150">
+                    <Region fx:id="localVideo" 
+                            prefWidth="200"
+                            prefHeight="150"
+                            styleClass="local-video-new"/>
+                    
+                    <!-- Badge "Bạn" -->
+                    <HBox alignment="TOP_LEFT" StackPane.alignment="TOP_LEFT">
+                        <padding>
+                            <Insets top="8" right="0" bottom="0" left="8"/>
+                        </padding>
+                        <Label text="Bạn" styleClass="video-badge"/>
+                    </HBox>
+                    
+                    <!-- Mute indicator -->
+                    <HBox fx:id="muteIndicator" alignment="TOP_RIGHT" StackPane.alignment="TOP_RIGHT" visible="false">
+                        <padding>
+                            <Insets top="8" right="8" bottom="0" left="0"/>
+                        </padding>
+                        <Label text="🔇" styleClass="mute-indicator"/>
+                    </HBox>
+                </StackPane>
+            </StackPane>
+        </StackPane>
+    </center>
+
+    <!-- BOTTOM: Call controls - chỉ 3 nút chính -->
+    <bottom>
+        <VBox alignment="CENTER" styleClass="call-controls-container">
+            <padding>
+                <Insets top="16" right="0" bottom="20" left="0"/>
+            </padding>
+
+            <HBox spacing="20" alignment="CENTER" styleClass="call-controls-bar-new">
+                
+                <!-- Mic Button -->
+                <Button fx:id="btnMute"
+                        text="🎤"
+                        onAction="#handleToggleMute"
+                        styleClass="control-btn"/>
+
+                <!-- Camera Button -->
+                <Button fx:id="btnCamera"
+                        text="📷"
+                        onAction="#handleToggleCamera"
+                        styleClass="control-btn"/>
+
+                <!-- Accept Call Button (ẩn, chỉ hiện khi nhận cuộc gọi) -->
+                <Button fx:id="btnJoin"
+                        text="📞"
+                        onAction="#handleJoinCall"
+                        styleClass="control-btn control-btn-accept"
+                        visible="false"
+                        managed="false"/>
+
+                <!-- End Call Button -->
+                <Button fx:id="btnLeave"
+                        text="📵"
+                        onAction="#handleLeaveCall"
+                        styleClass="control-btn control-btn-end"/>
+            </HBox>
+        </VBox>
+    </bottom>
+
+</BorderPane>

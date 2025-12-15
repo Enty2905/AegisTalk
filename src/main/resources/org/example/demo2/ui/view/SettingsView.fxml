@@ -1,0 +1,45 @@
+<?xml version="1.0" encoding="UTF-8"?>
+
+<?import javafx.scene.layout.BorderPane?>
+<?import javafx.scene.layout.VBox?>
+<?import javafx.scene.control.Label?>
+<?import javafx.scene.control.Button?>
+<?import javafx.scene.control.CheckBox?>
+<?import javafx.geometry.Insets?>
+
+<BorderPane xmlns="http://javafx.com/javafx"
+            xmlns:fx="http://javafx.com/fxml"
+            fx:controller="org.example.demo2.ui.controller.SettingsController"
+            styleClass="root-pane">
+
+    <top>
+        <VBox spacing="4" styleClass="top-bar">
+            <padding>
+                <Insets top="8" right="12" bottom="8" left="12"/>
+            </padding>
+            <children>
+                <Label text="Settings"
+                       styleClass="app-title-small"/>
+                <Label text="(Demo) Các tuỳ chọn client: theme, âm thanh, v.v."
+                       styleClass="app-subtitle"/>
+            </children>
+        </VBox>
+    </top>
+
+    <center>
+        <VBox spacing="12" styleClass="center-box">
+            <padding>
+                <Insets top="16" right="16" bottom="16" left="16"/>
+            </padding>
+            <children>
+                <CheckBox text="Bật âm thanh thông báo"/>
+                <CheckBox text="Hiện popup khi có tin nhắn mới"/>
+                <CheckBox text="Dùng theme tối (dark mode)" selected="true"/>
+
+                <Button text="Back to Chat"
+                        onAction="#handleBackToChat"/>
+            </children>
+        </VBox>
+    </center>
+
+</BorderPane>
