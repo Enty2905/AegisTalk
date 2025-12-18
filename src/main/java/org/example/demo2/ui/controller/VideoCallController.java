@@ -86,6 +86,11 @@ public class VideoCallController {
     private AudioFormat audioFormat;
     private volatile boolean audioRunning = false;
     
+    // Call duration timer
+    private long callStartTime = 0;
+    private Thread callDurationThread;
+    private volatile boolean callDurationRunning = false;
+    
     // Callback để đóng video call window
     private Runnable onCloseCallback;
     
@@ -324,7 +329,8 @@ public class VideoCallController {
                     clientService.rejectCall(currentCallSessionId, userId);
                 }
                 
-                // Dừng streaming
+                // Dừng timer và streaming
+                stopCallDurationTimer();
                 stopVideoStreaming();
                 
                 Platform.runLater(() -> {
@@ -1624,18 +1630,18 @@ public class VideoCallController {
                             
                             if (isCaller) {
                                 // Caller: start streaming khi callee accept
-                                System.out.println("[VideoCallController] Caller: Starting video streaming now...");
                                 Platform.runLater(() -> {
                                     isInCall = true;
                                     startVideoStreaming();
+                                    startCallDurationTimer(); // Bắt đầu đồng hồ
                                     lblCallStatus.setText("Đã kết nối với " + otherUserName);
-                                    System.out.println("[VideoCallController] Caller: Status updated to 'Đã kết nối với " + otherUserName + "'");
                                 });
                             } else {
                                 // Callee: start streaming khi accept
                                 Platform.runLater(() -> {
                                     isInCall = true;
                                     startVideoStreaming();
+                                    startCallDurationTimer(); // Bắt đầu đồng hồ
                                     lblCallStatus.setText("Đã kết nối với " + otherUserName);
                                     if (btnJoin != null) {
                                         btnJoin.setVisible(false);
@@ -1652,11 +1658,25 @@ public class VideoCallController {
                         }
                         // Tiếp tục polling để theo dõi trạng thái
                     } else if ("ENDED".equals(callInfo.status)) {
+                        // Dừng streaming và timer trước khi đóng
+                        stopCallDurationTimer();
+                        stopVideoStreaming();
+                        
                         Platform.runLater(() -> {
                             lblCallStatus.setText("Cuộc gọi đã kết thúc");
-                            if (onCloseCallback != null) {
-                                onCloseCallback.run();
-                            }
+                            // Delay một chút để user thấy thông báo
+                            new Thread(() -> {
+                                try {
+                                    Thread.sleep(1500);
+                                } catch (InterruptedException e) {
+                                    // Ignore
+                                }
+                                Platform.runLater(() -> {
+                                    if (onCloseCallback != null) {
+                                        onCloseCallback.run();
+                                    }
+                                });
+                            }).start();
                         });
                         break;
                     }
@@ -1717,6 +1737,56 @@ public class VideoCallController {
                 }
             }
         }, "Remote-Camera-Monitor").start();
+    }
+    
+    /**
+     * Bắt đầu đồng hồ đếm thời gian cuộc gọi.
+     */
+    private void startCallDurationTimer() {
+        callStartTime = System.currentTimeMillis();
+        callDurationRunning = true;
+        
+        callDurationThread = new Thread(() -> {
+            while (callDurationRunning && isInCall) {
+                try {
+                    long elapsed = System.currentTimeMillis() - callStartTime;
+                    long seconds = (elapsed / 1000) % 60;
+                    long minutes = (elapsed / (1000 * 60)) % 60;
+                    long hours = (elapsed / (1000 * 60 * 60));
+                    
+                    String durationText;
+                    if (hours > 0) {
+                        durationText = String.format("%02d:%02d:%02d", hours, minutes, seconds);
+                    } else {
+                        durationText = String.format("%02d:%02d", minutes, seconds);
+                    }
+                    
+                    Platform.runLater(() -> {
+                        if (lblCallDuration != null) {
+                            lblCallDuration.setText(durationText);
+                            lblCallDuration.setVisible(true);
+                        }
+                    });
+                    
+                    Thread.sleep(1000); // Update mỗi giây
+                } catch (InterruptedException e) {
+                    break;
+                }
+            }
+        }, "Call-Duration-Timer");
+        callDurationThread.setDaemon(true);
+        callDurationThread.start();
+    }
+    
+    /**
+     * Dừng đồng hồ đếm thời gian cuộc gọi.
+     */
+    private void stopCallDurationTimer() {
+        callDurationRunning = false;
+        if (callDurationThread != null) {
+            callDurationThread.interrupt();
+            callDurationThread = null;
+        }
     }
     
     private void showError(String message) {
