@@ -93,10 +93,22 @@ public class VideoStreamServer {
         byte[] payload = new byte[length - 16];
         System.arraycopy(data, 16, payload, 0, payload.length);
         
+        // Debug: Log khi nhận được AUDIO packet (chỉ lần đầu)
+        boolean isAudio = payload.length > 6 && 
+            payload[0] == 'A' && payload[1] == 'U' && 
+            payload[2] == 'D' && payload[3] == 'I' && 
+            payload[4] == 'O' && payload[5] == ':';
+        
         StreamSession session = sessions.get(sessionId);
         if (session != null) {
             // Cập nhật endpoint thực tế cho user này
             session.updateUserEndpoint(userId, packet.getAddress(), packet.getPort());
+            
+            // Log lần đầu nhận audio từ mỗi user
+            if (isAudio && sequence < 50) {
+                String srcIP = packet.getAddress().getHostAddress();
+                System.out.println("[VideoStreamServer] AUDIO from userId=" + userId + " IP=" + srcIP + " -> forwarding to others");
+            }
             
             // Forward đến các client khác trong session (dựa vào userId, không phải IP:port)
             forwardToOthers(session, sessionId, userId, sequence, timestamp, payload);
@@ -104,7 +116,6 @@ public class VideoStreamServer {
             // Log khi không tìm thấy session
             if (sequence % 100 == 0) {
                 System.out.println("[VideoStreamServer] WARNING: No session found for sessionId=" + sessionId + " (userId=" + userId + ")");
-                System.out.println("[VideoStreamServer] Available sessions: " + sessions.keySet());
             }
         }
     }
@@ -123,11 +134,8 @@ public class VideoStreamServer {
         System.arraycopy(headerBytes, 0, packetData, 0, 16);
         System.arraycopy(payload, 0, packetData, 16, payload.length);
         
-        // Debug log
-        if (sequence % 30 == 0) {
-            System.out.println("[VideoStreamServer] Forwarding frame #" + sequence + " from userId=" + senderId);
-            System.out.println("[VideoStreamServer] Session " + sessionId + " has " + session.getUserEndpoints().size() + " users");
-        }
+        // Debug log - chỉ log lần đầu tiên nhận frame từ mỗi user
+        // (Đã tắt để giảm spam)
         
         // Gửi đến tất cả users khác trong session (dựa vào userId)
         for (Map.Entry<Integer, UserEndpoint> entry : session.getUserEndpoints().entrySet()) {
@@ -141,11 +149,7 @@ public class VideoStreamServer {
                             packetData, packetData.length,
                             endpoint.getActualAddress(), endpoint.getActualPort());
                     socket.send(forwardPacket);
-                    
-                    if (sequence % 30 == 0) {
-                        System.out.println("[VideoStreamServer] -> Forwarded to userId=" + targetUserId + 
-                                          " at " + endpoint.getActualAddress().getHostAddress() + ":" + endpoint.getActualPort());
-                    }
+                    // Đã tắt log để giảm spam
                 } catch (IOException e) {
                     System.err.println("[VideoStreamServer] Error forwarding to userId=" + targetUserId + ": " + e.getMessage());
                 }

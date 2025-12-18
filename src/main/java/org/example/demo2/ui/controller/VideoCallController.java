@@ -126,7 +126,6 @@ public class VideoCallController {
         });
         
         // Mở camera preview ngay lập tức (chưa streaming, chỉ preview)
-        System.out.println("[VideoCallController] Starting camera preview for caller");
         isInCall = true; // Set để camera có thể hiển thị
         startLocalVideo();
         
@@ -137,7 +136,6 @@ public class VideoCallController {
                 Integer sessionId = clientService.inviteCall(callerId, calleeId);
                 if (sessionId != null) {
                     this.currentCallSessionId = sessionId;
-                    System.out.println("[VideoCallController] Call invited: session=" + sessionId);
                     
                     // Start polling SAU KHI sessionId đã được set
                     startCallStatusPolling();
@@ -238,7 +236,6 @@ public class VideoCallController {
         new Thread(() -> {
             try {
                 Long userId = Session.getUserId();
-                System.out.println("[VideoCallController] Attempting to accept call: session=" + currentCallSessionId + ", user=" + userId);
                 
                 // Kiểm tra call info trước khi accept
                 CallService.CallInfo callInfo = clientService.getCallInfo(currentCallSessionId);
@@ -264,7 +261,6 @@ public class VideoCallController {
                 }
                 
                 boolean success = clientService.acceptCall(currentCallSessionId, userId);
-                System.out.println("[VideoCallController] Accept call result: " + success);
                 
                 if (success) {
                     // Set isInCall trước để startLocalVideo có thể hoạt động
@@ -366,12 +362,10 @@ public class VideoCallController {
         if (isMuted) {
             // TẮT MIC - Đóng microphone để release quyền cho app khác
             stopMicrophoneCapture();
-            System.out.println("[VideoCallController] Mic muted - microphone released");
         } else {
             // BẬT MIC - Mở lại microphone nếu đang trong cuộc gọi
             if (isInCall && videoStreamClient != null) {
                 restartMicrophoneCapture();
-                System.out.println("[VideoCallController] Mic unmuted - microphone reopened");
             }
         }
     }
@@ -389,12 +383,10 @@ public class VideoCallController {
                 btnCamera.getStyleClass().remove("camera-off");
             }
         }
-        System.out.println("[VideoCallController] Camera " + (isCameraOn ? "on" : "off"));
         
         if (!isCameraOn) {
             // TẮT CAMERA - LUÔN đóng webcam để release quyền cho app khác
             // Điều này quan trọng khi test 2 client trên cùng 1 máy
-            System.out.println("[VideoCallController] Camera off - releasing webcam immediately");
             stopWebcamCapture();
             
             Platform.runLater(() -> {
@@ -427,12 +419,10 @@ public class VideoCallController {
         } else {
             // BẬT CAMERA - Mở lại webcam nếu đang trong cuộc gọi
             if (isInCall && currentCallSessionId != null) {
-                System.out.println("[VideoCallController] Reopening webcam for streaming...");
                 try {
                     reopenWebcam();
                 } catch (Exception e) {
                     System.err.println("[VideoCallController] Error reopening webcam: " + e.getMessage());
-                    e.printStackTrace();
                 }
             }
         }
@@ -444,18 +434,15 @@ public class VideoCallController {
             return;
         }
         
-        System.out.println("[VideoCallController] ===== Starting video streaming for session: " + currentCallSessionId + " (isCaller=" + isCaller + ") =====");
+        System.out.println("[VideoCallController] Starting video streaming for session: " + currentCallSessionId);
         
         try {
             // Bắt đầu local video TRƯỚC để đảm bảo UI được setup
             // Nếu đã có webcam mở từ preview (caller), không cần mở lại
             if (webcam == null || !webcam.isOpen()) {
-                System.out.println("[VideoCallController] Starting local video first...");
                 startLocalVideo();
                 // Đợi một chút để canvas được thêm vào UI
                 Thread.sleep(200);
-            } else {
-                System.out.println("[VideoCallController] Webcam already open from preview, reusing for streaming");
             }
             
             // Tạo UDP client
@@ -464,22 +451,20 @@ public class VideoCallController {
             // QUAN TRỌNG: Set userId cho VideoStreamClient để server phân biệt được users
             Long userId = Session.getUserId();
             videoStreamClient.setUserId(userId.intValue());
-            System.out.println("[VideoCallController] Set userId=" + userId + " for VideoStreamClient");
             
             videoStreamClient.connect(org.example.demo2.config.ServerConfig.SERVER_HOST, org.example.demo2.config.ServerConfig.VIDEO_STREAM_PORT);
-            System.out.println("[VideoCallController] UDP client connected");
             
             // Đăng ký UDP endpoint với server
             // Sử dụng phương thức getLocalLanAddress để lấy đúng IP LAN (không phải localhost)
             String localAddress = VideoStreamClient.getLocalLanAddress();
             int localPort = videoStreamClient.getLocalPort();
             
-            System.out.println("[VideoCallController] Registering UDP endpoint: " + localAddress + ":" + localPort + " for user " + userId);
+            System.out.println("[VideoCallController] UDP endpoint: " + localAddress + ":" + localPort + " (userId=" + userId + ")");
             clientService.registerUdpEndpoint(currentCallSessionId, userId, localAddress, localPort);
-            System.out.println("[VideoCallController] UDP endpoint registered: " + localAddress + ":" + localPort);
             
             // Bắt đầu nhận frame (video + audio)
             final int[] audioReceivedCount = {0};
+            final int[] videoReceivedCount = {0};
             videoStreamClient.startReceiving((sessionId, sequence, timestamp, frameData) -> {
                 // QUAN TRỌNG: Chỉ xử lý frames từ đúng session
                 if (sessionId == currentCallSessionId) {
@@ -492,32 +477,31 @@ public class VideoCallController {
                         byte[] audioData = new byte[frameData.length - 6];
                         System.arraycopy(frameData, 6, audioData, 0, audioData.length);
                         audioReceivedCount[0]++;
-                        // Log mỗi 200 packets để giảm spam (khoảng 4 giây)
-                        if (audioReceivedCount[0] % 200 == 0) {
-                            System.out.println("[VideoCallController] ✓ Received " + audioReceivedCount[0] + " AUDIO packets");
+                        // Log đầu tiên để confirm có nhận được audio
+                        if (audioReceivedCount[0] == 1) {
+                            System.out.println("[VideoCallController] ✓ First AUDIO packet received! Audio streaming is working.");
                         }
                         playRemoteAudio(audioData);
                     } else {
-                        // Video packet - displayRemoteVideo đã có throttle và Platform.runLater bên trong
+                        // Video packet
+                        videoReceivedCount[0]++;
+                        if (videoReceivedCount[0] == 1) {
+                            System.out.println("[VideoCallController] ✓ First VIDEO packet received!");
+                        }
                         displayRemoteVideo(frameData);
                     }
                 }
-                // Không log frame sai session để tránh spam
             });
-            System.out.println("[VideoCallController] Started receiving frames (video + audio)");
             
             // Start monitoring remote camera status (check if no frames received for a while)
             startRemoteCameraMonitoring();
             
-            // Status sẽ được update bởi polling khi ACTIVE
-            
             // Bắt đầu gửi video frame
             startSendingFrames();
-            System.out.println("[VideoCallController] Started sending frames");
             
             // Bắt đầu audio streaming
             startAudioStreaming();
-            System.out.println("[VideoCallController] Started audio streaming");
+            System.out.println("[VideoCallController] Video + Audio streaming started");
             
         } catch (Exception e) {
             System.err.println("[VideoCallController] Error starting video streaming: " + e.getMessage());
@@ -529,20 +513,17 @@ public class VideoCallController {
      * Mở lại webcam sau khi đã đóng (dùng khi bật lại camera).
      */
     private void reopenWebcam() {
-        System.out.println("[VideoCallController] Reopening webcam...");
-        
         // Đảm bảo webcam đã được đóng hoàn toàn
         if (webcam != null && webcam.isOpen()) {
             try {
                 webcam.close();
-                System.out.println("[VideoCallController] Closed existing webcam before reopening");
             } catch (Exception e) {
-                System.err.println("[VideoCallController] Error closing webcam before reopen: " + e.getMessage());
+                // Ignore
             }
             webcam = null;
         }
         
-        // Đợi lâu hơn để webcam được release hoàn toàn (webcam-capture cần thời gian)
+        // Đợi để webcam được release hoàn toàn
         try {
             Thread.sleep(500);
         } catch (InterruptedException e) {
@@ -553,13 +534,11 @@ public class VideoCallController {
         try {
             List<com.github.sarxos.webcam.Webcam> webcams = com.github.sarxos.webcam.Webcam.getWebcams();
             if (webcams.isEmpty()) {
-                System.out.println("[VideoCallController] No webcam available for reopening");
                 return;
             }
             
             webcam = com.github.sarxos.webcam.Webcam.getDefault();
             if (webcam == null) {
-                System.out.println("[VideoCallController] No default webcam available - auto disable camera");
                 isCameraOn = false;
                 Platform.runLater(() -> {
                     if (btnCamera != null) {
@@ -590,14 +569,10 @@ public class VideoCallController {
                 // Mở webcam
                 webcam.open();
             }
-            System.out.println("[VideoCallController] ✓ Webcam reopened successfully!");
             
-            // Restart webcam display (sẽ reuse ImageView nếu đã tồn tại)
-            // Nếu ImageView đã tồn tại, chỉ restart capture thread
-            // Nếu chưa có ImageView, tạo mới
-            startWebcamDisplay(false); // false = reuse existing ImageView
+            // Restart webcam display
+            startWebcamDisplay(false);
         } catch (com.github.sarxos.webcam.WebcamLockException e) {
-            System.err.println("[VideoCallController] Webcam is locked, auto disable camera: " + e.getMessage());
             webcam = null;
             isCameraOn = false;
             Platform.runLater(() -> {
@@ -608,7 +583,6 @@ public class VideoCallController {
             });
         } catch (Exception e) {
             System.err.println("[VideoCallController] Error reopening webcam: " + e.getMessage());
-            e.printStackTrace();
             webcam = null;
             isCameraOn = false;
             Platform.runLater(() -> {
@@ -626,58 +600,43 @@ public class VideoCallController {
      */
     private void startLocalVideo() {
         if (localVideo == null) {
-            System.err.println("[VideoCallController] localVideo is null, cannot start local video");
+            System.err.println("[VideoCallController] localVideo is null");
             return;
         }
         
         // Nếu đã có canvas hoặc imageview, không tạo lại
         if (localVideoCanvas != null || localVideoImageView != null) {
-            System.out.println("[VideoCallController] Local video already exists");
             return;
         }
         
-        System.out.println("[VideoCallController] Starting local video display");
-        System.out.println("[VideoCallController] localVideo parent: " + (localVideo.getParent() != null ? localVideo.getParent().getClass().getName() : "null"));
-        
         // Thử mở webcam thật
-        System.out.println("[VideoCallController] Attempting to open real webcam...");
         try {
             // Kiểm tra webcam có sẵn không
-            System.out.println("[VideoCallController] Checking for available webcams...");
             List<com.github.sarxos.webcam.Webcam> webcams = com.github.sarxos.webcam.Webcam.getWebcams();
-            System.out.println("[VideoCallController] Found " + webcams.size() + " webcam(s)");
             
             if (webcams.isEmpty()) {
-                System.out.println("[VideoCallController] No webcam found, using placeholder");
                 startPlaceholderVideo();
                 return;
             }
             
             // Lấy webcam mặc định
-            System.out.println("[VideoCallController] Getting default webcam...");
             webcam = com.github.sarxos.webcam.Webcam.getDefault();
             if (webcam == null) {
-                System.out.println("[VideoCallController] Cannot get default webcam, using placeholder");
                 startPlaceholderVideo();
                 return;
             }
             
-            System.out.println("[VideoCallController] Default webcam: " + webcam.getName());
-            
             // Kiểm tra webcam đã mở chưa
             if (webcam.isOpen()) {
-                System.out.println("[VideoCallController] Webcam already open, reusing existing instance");
                 // Kiểm tra xem webcam có thực sự hoạt động không
                 BufferedImage testImage = webcam.getImage();
                 if (testImage == null) {
-                    System.out.println("[VideoCallController] Warning: Webcam is open but getImage() returns null - may be locked by another process");
                     // Fallback về placeholder
                     throw new com.github.sarxos.webcam.WebcamLockException("Webcam is locked");
                 }
             } else {
                 // Thiết lập kích thước TRƯỚC KHI mở webcam (quan trọng!)
                 Dimension[] sizes = webcam.getViewSizes();
-                System.out.println("[VideoCallController] Available view sizes: " + sizes.length);
                 if (sizes.length > 0) {
                     // Dùng kích thước vừa phải (không quá lớn để tránh lag)
                     Dimension targetSize = sizes[sizes.length - 1];
@@ -691,27 +650,18 @@ public class VideoCallController {
                         }
                     }
                     webcam.setViewSize(targetSize);
-                    System.out.println("[VideoCallController] Webcam view size set to: " + targetSize.width + "x" + targetSize.height);
                 }
                 
                 // Mở webcam SAU KHI set view size
-                System.out.println("[VideoCallController] Opening webcam...");
                 webcam.open();
-                System.out.println("[VideoCallController] ✓ Webcam opened successfully!");
             }
-            System.out.println("[VideoCallController] Webcam is open: " + webcam.isOpen());
             
             // Tạo ImageView để hiển thị webcam
             startWebcamDisplay();
             
         } catch (com.github.sarxos.webcam.WebcamLockException e) {
-            // Webcam đã bị lock bởi instance khác (có thể do nhiều người dùng trên cùng máy)
-            System.err.println("[VideoCallController] ✗ Webcam is locked by another instance");
-            System.err.println("[VideoCallController] This usually happens when multiple users are on the same machine");
-            System.err.println("[VideoCallController] Falling back to placeholder video with camera OFF");
-            // Đảm bảo webcam reference được clear
+            // Webcam đã bị lock bởi instance khác
             webcam = null;
-            // TỰ ĐỘNG TẮT CAMERA khi bị lock
             isCameraOn = false;
             Platform.runLater(() -> {
                 if (btnCamera != null) {
@@ -721,13 +671,8 @@ public class VideoCallController {
             });
             startPlaceholderVideo();
         } catch (Exception e) {
-            System.err.println("[VideoCallController] ✗ Error opening webcam: " + e.getMessage());
-            System.err.println("[VideoCallController] Exception type: " + e.getClass().getName());
-            e.printStackTrace();
-            // Fallback về placeholder với camera TẮT
-            System.out.println("[VideoCallController] Falling back to placeholder video with camera OFF");
+            System.err.println("[VideoCallController] Error opening webcam: " + e.getMessage());
             webcam = null;
-            // TỰ ĐỘNG TẮT CAMERA khi có lỗi
             isCameraOn = false;
             Platform.runLater(() -> {
                 if (btnCamera != null) {
@@ -745,13 +690,11 @@ public class VideoCallController {
      */
     private void startWebcamDisplay(boolean forceRecreate) {
         if (webcam == null || !webcam.isOpen()) {
-            System.err.println("[VideoCallController] Webcam is not open");
             return;
         }
         
         // Nếu ImageView đã tồn tại và không force recreate, chỉ restart thread
         if (localVideoImageView != null && !forceRecreate) {
-            System.out.println("[VideoCallController] ImageView already exists, restarting webcam capture thread");
             // Dừng thread cũ nếu có
             if (webcamThread != null && webcamThread.isAlive()) {
                 webcamThread.interrupt();
@@ -794,7 +737,6 @@ public class VideoCallController {
                     // Kích thước cố định cho local video (nhỏ ở góc)
                     localVideoImageView.setFitWidth(200);
                     localVideoImageView.setFitHeight(150);
-                    System.out.println("[VideoCallController] ImageView size: 200x150 (fixed for local video)");
                     
                     // Đảm bảo ImageView hiển thị
                     localVideoImageView.setVisible(true);
@@ -804,8 +746,6 @@ public class VideoCallController {
                     localVideo.setVisible(false);
                     localVideo.setManaged(false);
                     stackPane.getChildren().add(0, localVideoImageView);
-                    System.out.println("[VideoCallController] Added ImageView to StackPane for webcam");
-                    System.out.println("[VideoCallController] StackPane children count: " + stackPane.getChildren().size());
                 } else {
                     // Reuse existing ImageView
                     localVideoImageView.setVisible(true);
@@ -813,7 +753,6 @@ public class VideoCallController {
                 }
                 imageViewReady.countDown(); // Báo hiệu ImageView đã sẵn sàng
             } else {
-                System.err.println("[VideoCallController] Cannot add ImageView, parent is not StackPane");
                 startPlaceholderVideo();
                 imageViewReady.countDown(); // Vẫn countDown để thread không bị block
                 return;
@@ -822,15 +761,9 @@ public class VideoCallController {
         
         // Đợi ImageView được tạo xong (tối đa 5 giây)
         try {
-            boolean ready = imageViewReady.await(5, TimeUnit.SECONDS);
-            if (!ready) {
-                System.err.println("[VideoCallController] Timeout waiting for ImageView to be created (5s)");
-                System.err.println("[VideoCallController] Will retry in capture thread");
-            } else {
-                System.out.println("[VideoCallController] ImageView is ready!");
-            }
+            imageViewReady.await(5, TimeUnit.SECONDS);
         } catch (InterruptedException e) {
-            System.err.println("[VideoCallController] Interrupted while waiting for ImageView");
+            // Ignore
         }
         
         // Bắt đầu capture frame từ webcam (sau khi ImageView đã sẵn sàng)
@@ -849,7 +782,6 @@ public class VideoCallController {
      */
     private void startWebcamCaptureThread() {
         if (webcam == null || !webcam.isOpen()) {
-            System.err.println("[VideoCallController] Cannot start capture thread - webcam is not open");
             return;
         }
         
@@ -865,9 +797,6 @@ public class VideoCallController {
         
         // Bắt đầu capture frame từ webcam
         webcamThread = new Thread(() -> {
-            System.out.println("[VideoCallController] Starting webcam capture thread");
-            System.out.println("[VideoCallController] isInCall=" + isInCall + ", webcam.isOpen()=" + (webcam != null && webcam.isOpen()) + ", imageView=" + (localVideoImageView != null));
-            
             // Đợi ImageView được tạo nếu chưa sẵn sàng (retry mechanism)
             int retryCount = 0;
             while (localVideoImageView == null && retryCount < 50 && isInCall) {
@@ -880,18 +809,15 @@ public class VideoCallController {
             }
             
             if (localVideoImageView == null) {
-                System.err.println("[VideoCallController] ImageView still not ready after " + (retryCount * 100) + "ms, cannot start capture");
                 return;
             }
             
-            System.out.println("[VideoCallController] ImageView ready, starting capture loop");
             int frameCount = 0;
             int nullFrameCount = 0; // Đếm số lần liên tiếp webcam trả về null
             while (isInCall && !webcamCaptureStopping && localVideoImageView != null) {
                 try {
                     // Kiểm tra flag dừng trước mỗi iteration
                     if (webcamCaptureStopping) {
-                        System.out.println("[VideoCallController] Webcam capture stopping flag detected");
                         break;
                     }
                     
@@ -903,7 +829,6 @@ public class VideoCallController {
                     // Lấy reference local để tránh null pointer khi webcam bị close giữa chừng
                     com.github.sarxos.webcam.Webcam localWebcam = webcam;
                     if (localWebcam == null || !localWebcam.isOpen()) {
-                        System.out.println("[VideoCallController] Webcam is not available, stopping capture");
                         break;
                     }
                     
@@ -924,22 +849,15 @@ public class VideoCallController {
                         
                         frameCount++;
                         nullFrameCount = 0; // Reset null frame counter
-                        if (frameCount % 30 == 0) {
-                            System.out.println("[VideoCallController] Captured " + frameCount + " frames from webcam");
-                        }
                     } else {
                         // Nếu getImage() trả về null liên tục, có thể webcam bị lock
                         nullFrameCount++;
                         
                         if (frameCount == 0) {
                             // Chưa capture được frame nào - webcam có thể bị lock bởi app khác
-                            if (nullFrameCount == 1 || nullFrameCount % 50 == 0) {
-                                System.out.println("[VideoCallController] Warning: webcam.getImage() returned null - webcam may be locked or unavailable (attempt " + nullFrameCount + ")");
-                            }
                             
                             // Sau 100 lần thử (khoảng 10 giây), hiển thị thông báo cho user
                             if (nullFrameCount == 100) {
-                                System.out.println("[VideoCallController] Webcam appears to be locked by another application");
                                 Platform.runLater(() -> {
                                     if (localVideoImageView != null) {
                                         // Hiển thị thông báo webcam bị lock
@@ -965,19 +883,16 @@ public class VideoCallController {
                             Thread.sleep(100);
                         } else {
                             // Nếu đã capture được frames trước đó nhưng giờ null, có thể webcam bị release
-                            System.out.println("[VideoCallController] Webcam.getImage() returned null after " + frameCount + " frames - stopping capture");
                             break;
                         }
                     }
                     Thread.sleep(33); // ~30 FPS
                 } catch (Exception e) {
                     if (isInCall) {
-                        System.err.println("[VideoCallController] Error capturing webcam frame: " + e.getMessage());
-                        e.printStackTrace();
+                        System.err.println("[VideoCallController] Error capturing webcam: " + e.getMessage());
                     }
                 }
             }
-            System.out.println("[VideoCallController] Webcam capture thread ended (total frames: " + frameCount + ")");
         }, "Webcam-Capture");
         webcamThread.setDaemon(true);
         webcamThread.start();
@@ -987,15 +902,12 @@ public class VideoCallController {
      * Hiển thị placeholder video (khi không có webcam hoặc webcam lỗi).
      */
     private void startPlaceholderVideo() {
-        System.out.println("[VideoCallController] Starting placeholder video");
-        
         // Tạo Canvas để vẽ video
         localVideoCanvas = new Canvas();
         
         // Kích thước cố định cho local video (nhỏ ở góc)
         localVideoCanvas.setWidth(200);
         localVideoCanvas.setHeight(150);
-        System.out.println("[VideoCallController] Canvas size: 200x150 (fixed for local video)");
         
         final GraphicsContext gc = localVideoCanvas.getGraphicsContext2D();
         
@@ -1119,8 +1031,6 @@ public class VideoCallController {
             return;
         }
         
-        // Update lastRemoteFrameTime ngay khi nhận được frame hợp lệ
-        lastRemoteFrameTime = System.currentTimeMillis();
         remoteFrameCount++;
         
         // Throttle: Chỉ update UI tối đa 30 FPS để tránh overload JavaFX thread
@@ -1129,11 +1039,6 @@ public class VideoCallController {
             return; // Bỏ qua frame này để giảm tải
         }
         lastRemoteFrameUpdateTime = now;
-        
-        // Log mỗi 30 frames thay vì mỗi frame
-        if (remoteFrameCount % 30 == 0) {
-            System.out.println("[VideoCallController] Received " + remoteFrameCount + " remote video frames from " + otherUserName);
-        }
         
         try {
             // Decode JPEG bytes thành BufferedImage
@@ -1302,8 +1207,6 @@ public class VideoCallController {
         new Thread(() -> {
             int frameCount = 0;
             int senderNullCount = 0; // Đếm số lần webcam.getImage() trả về null
-            System.out.println("[VideoCallController] Starting video sender thread");
-            System.out.println("[VideoCallController] isCameraOn=" + isCameraOn + ", webcam=" + (webcam != null) + ", webcam.isOpen()=" + (webcam != null && webcam.isOpen()) + ", videoStreamClient=" + (videoStreamClient != null));
             
             while (isInCall && videoStreamClient != null) {
                 try {
@@ -1315,17 +1218,7 @@ public class VideoCallController {
                     
                     // Kiểm tra webcam
                     if (webcam == null || !webcam.isOpen()) {
-                        if (frameCount == 0) {
-                            System.out.println("[VideoCallController] Webcam not available, waiting...");
-                        }
                         Thread.sleep(500);
-                        continue;
-                    }
-                    
-                    // Kiểm tra webcam có available không
-                    if (webcam == null || !webcam.isOpen()) {
-                        // Webcam không available - không gửi frame
-                        Thread.sleep(100);
                         continue;
                     }
                     
@@ -1342,16 +1235,9 @@ public class VideoCallController {
                         
                         frameCount++;
                         senderNullCount = 0; // Reset null counter khi gửi thành công
-                        if (frameCount == 1 || frameCount % 30 == 0) {
-                            System.out.println("[VideoCallController] ✓ Sent LOCAL frame #" + frameCount + " (" + frameData.length + " bytes) to remote user");
-                        }
                     } else {
                         // Nếu getImage() trả về null, có thể webcam bị lock hoặc không available
                         senderNullCount++;
-                        if (senderNullCount == 1 || senderNullCount % 100 == 0) {
-                            // Log warning chỉ 1 lần đầu và mỗi 100 lần sau đó
-                            System.out.println("[VideoCallController] Warning: webcam.getImage() returned null for video sender (count: " + senderNullCount + ")");
-                        }
                         // Không spam log - chỉ đợi và thử lại
                         Thread.sleep(100);
                     }
@@ -1400,10 +1286,9 @@ public class VideoCallController {
             try {
                 if (webcamToClose.isOpen()) {
                     webcamToClose.close();
-                    System.out.println("[VideoCallController] ✓ Webcam closed and released");
                 }
             } catch (Exception e) {
-                System.err.println("[VideoCallController] Error closing webcam: " + e.getMessage());
+                // Ignore
             }
         }
         
@@ -1428,11 +1313,8 @@ public class VideoCallController {
             // Bắt đầu nhận và phát audio từ remote
             startAudioPlayback();
             
-            System.out.println("[VideoCallController] Audio streaming initialized");
-            
         } catch (Exception e) {
-            System.err.println("[VideoCallController] Error starting audio streaming: " + e.getMessage());
-            e.printStackTrace();
+            System.err.println("[VideoCallController] Error starting audio: " + e.getMessage());
         }
     }
     
@@ -1445,7 +1327,6 @@ public class VideoCallController {
                 DataLine.Info micInfo = new DataLine.Info(TargetDataLine.class, audioFormat);
                 
                 if (!AudioSystem.isLineSupported(micInfo)) {
-                    System.err.println("[VideoCallController] Microphone not supported on this system!");
                     Platform.runLater(() -> {
                         if (btnMute != null) {
                             btnMute.setText("⚠️");
@@ -1459,7 +1340,7 @@ public class VideoCallController {
                 microphone.open(audioFormat);
                 microphone.start();
                 
-                System.out.println("[VideoCallController] ✓ Microphone started - ready for voice chat");
+                System.out.println("[VideoCallController] ✓ Microphone ready");
                 
                 // Buffer cho audio data (20ms của audio = 640 bytes ở 16kHz, 16-bit, mono)
                 byte[] buffer = new byte[640];
@@ -1496,14 +1377,13 @@ public class VideoCallController {
                         videoStreamClient.sendFrame(audioPacket);
                         
                         packetCount++;
-                        // Log mỗi 500 packets (khoảng 10 giây) để giảm spam
-                        if (packetCount % 500 == 0) {
-                            System.out.println("[VideoCallController] Sent " + packetCount + " audio packets");
+                        // Chỉ log lần đầu để confirm mic đang hoạt động
+                        if (packetCount == 1) {
+                            System.out.println("[VideoCallController] ✓ First audio packet sent! Mic is working.");
                         }
                     }
                 }
             } catch (LineUnavailableException e) {
-                System.err.println("[VideoCallController] Microphone unavailable: " + e.getMessage());
                 Platform.runLater(() -> {
                     if (btnMute != null) {
                         btnMute.setText("⚠️");
@@ -1511,10 +1391,7 @@ public class VideoCallController {
                     }
                 });
             } catch (Exception e) {
-                if (audioRunning) {
-                    System.err.println("[VideoCallController] Error in microphone capture: " + e.getMessage());
-                    e.printStackTrace();
-                }
+                // Ignore
             } finally {
                 if (microphone != null) {
                     try {
@@ -1534,8 +1411,6 @@ public class VideoCallController {
      * Dừng và đóng microphone để release quyền (khi mute).
      */
     private void stopMicrophoneCapture() {
-        System.out.println("[VideoCallController] Stopping microphone capture...");
-        
         // Dừng thread capture trước
         Thread threadToStop = audioSendThread;
         audioSendThread = null;
@@ -1557,9 +1432,8 @@ public class VideoCallController {
             try {
                 micToClose.stop();
                 micToClose.close();
-                System.out.println("[VideoCallController] ✓ Microphone closed and released");
             } catch (Exception e) {
-                System.err.println("[VideoCallController] Error closing microphone: " + e.getMessage());
+                // Ignore
             }
         }
     }
@@ -1568,8 +1442,6 @@ public class VideoCallController {
      * Mở lại microphone (khi unmute).
      */
     private void restartMicrophoneCapture() {
-        System.out.println("[VideoCallController] Restarting microphone capture...");
-        
         // Đảm bảo audioFormat đã được khởi tạo
         if (audioFormat == null) {
             audioFormat = new AudioFormat(16000, 16, 1, true, false);
@@ -1589,7 +1461,6 @@ public class VideoCallController {
                 DataLine.Info speakerInfo = new DataLine.Info(SourceDataLine.class, audioFormat);
                 
                 if (!AudioSystem.isLineSupported(speakerInfo)) {
-                    System.err.println("[VideoCallController] Speakers not supported on this system!");
                     return;
                 }
                 
@@ -1597,19 +1468,16 @@ public class VideoCallController {
                 speakers.open(audioFormat);
                 speakers.start();
                 
-                System.out.println("[VideoCallController] ✓ Speakers started - ready to receive audio");
+                System.out.println("[VideoCallController] ✓ Speakers ready for audio");
                 
                 // Keep thread alive để speakers không bị đóng
                 while (audioRunning) {
                     Thread.sleep(100);
                 }
             } catch (LineUnavailableException e) {
-                System.err.println("[VideoCallController] Speakers unavailable: " + e.getMessage());
+                // Ignore
             } catch (Exception e) {
-                if (audioRunning) {
-                    System.err.println("[VideoCallController] Error in audio playback setup: " + e.getMessage());
-                    e.printStackTrace();
-                }
+                // Ignore
             } finally {
                 if (speakers != null) {
                     try {
@@ -1635,15 +1503,14 @@ public class VideoCallController {
             try {
                 speakers.write(audioData, 0, audioData.length);
                 audioPlayCount++;
-                // Log mỗi 500 packets (khoảng 10 giây) để giảm spam
-                if (audioPlayCount % 500 == 0) {
-                    System.out.println("[VideoCallController] ✓ Played " + audioPlayCount + " audio packets");
+                // Chỉ log lần đầu để confirm đang phát audio
+                if (audioPlayCount == 1) {
+                    System.out.println("[VideoCallController] ✓ First audio packet played to speakers!");
                 }
             } catch (Exception e) {
-                System.err.println("[VideoCallController] Error playing audio: " + e.getMessage());
+                // Ignore
             }
         }
-        // Bỏ log debug khi speakers null vì có thể spam
     }
     
     /**
