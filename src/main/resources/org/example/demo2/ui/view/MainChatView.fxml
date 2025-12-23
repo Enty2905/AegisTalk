@@ -9,7 +9,7 @@
 
     <!-- Left Sidebar: Friends/Groups List -->
     <left>
-        <VBox prefWidth="380" styleClass="sidebar-left">
+        <VBox minWidth="280" maxWidth="450" prefWidth="380" styleClass="sidebar-left">
             <!-- Header: Title + New Message -->
             <HBox alignment="CENTER_LEFT" spacing="12" styleClass="sidebar-header">
                 <padding>
@@ -179,7 +179,7 @@
 
     <!-- Right Sidebar: Info Panel (ẩn mặc định) -->
     <right>
-        <VBox fx:id="infoPanel" managed="false" prefWidth="340" styleClass="sidebar-right" visible="false">
+        <VBox fx:id="infoPanel" managed="false" minWidth="260" maxWidth="400" prefWidth="340" styleClass="sidebar-right" visible="false">
             <padding>
                 <Insets bottom="20" left="20" right="20" top="20" />
             </padding>

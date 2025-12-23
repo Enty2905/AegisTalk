@@ -165,6 +165,9 @@ public class LoginController {
                     Stage stage = (Stage) btnLogin.getScene().getWindow();
                     stage.setScene(scene);
                     stage.setTitle("AegisTalk - " + user.displayName());
+                    // Set minimum size để responsive trên màn hình nhỏ
+                    stage.setMinWidth(900);
+                    stage.setMinHeight(600);
                     stage.centerOnScreen();
                 } catch (java.io.IOException e) {
                     showStatus("✗ Lỗi tải giao diện: " + e.getMessage(), false);
@@ -218,6 +221,9 @@ public class LoginController {
                     Stage stage = (Stage) btnRegister.getScene().getWindow();
                     stage.setScene(scene);
                     stage.setTitle("AegisTalk - " + user.displayName());
+                    // Set minimum size để responsive trên màn hình nhỏ
+                    stage.setMinWidth(900);
+                    stage.setMinHeight(600);
                     stage.centerOnScreen();
                 } catch (java.io.IOException e) {
                     showStatus("✗ Lỗi tải giao diện: " + e.getMessage(), false);
