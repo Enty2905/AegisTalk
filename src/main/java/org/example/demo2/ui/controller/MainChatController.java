@@ -2918,78 +2918,85 @@ public class MainChatController {
                 
                 // Kiểm tra cache trước
                 Image img = imageCache.get(source);
+                final String finalSource = source; // Make final for lambda
+                final Circle finalCircle = circle; // Make final for lambda
+                final String finalFallbackColor = fallbackColor; // Make final for lambda
+                
                 if (img == null || img.isError()) {
                     // Load image với background loading
-                    img = new Image(source, circle.getRadius() * 2, circle.getRadius() * 2, true, true, true);
+                    img = new Image(finalSource, finalCircle.getRadius() * 2, finalCircle.getRadius() * 2, true, true, true);
+                    final Image finalImg = img; // Make final for lambda
                     // Cache image nếu load thành công
-                    img.progressProperty().addListener((obs, oldVal, newVal) -> {
-                        if (newVal.doubleValue() >= 1.0 && !img.isError()) {
-                            imageCache.put(source, img);
+                    finalImg.progressProperty().addListener((obs, oldVal, newVal) -> {
+                        if (newVal.doubleValue() >= 1.0 && !finalImg.isError()) {
+                            imageCache.put(finalSource, finalImg);
                         }
                     });
                     // Cache ngay nếu đã load xong
-                    if (img.getProgress() >= 1.0 && !img.isError()) {
-                        imageCache.put(source, img);
+                    if (finalImg.getProgress() >= 1.0 && !finalImg.isError()) {
+                        imageCache.put(finalSource, finalImg);
                     }
                 }
                 
+                final Image finalImg = img; // Make final for lambda
+                
                 // Thêm error listener để log chi tiết
-                img.errorProperty().addListener((obs, wasError, isError) -> {
+                finalImg.errorProperty().addListener((obs, wasError, isError) -> {
                     if (isError) {
-                        Exception exception = img.getException();
-                        System.err.println("[MainChatController] Avatar image loading error for: " + source);
+                        Exception exception = finalImg.getException();
+                        System.err.println("[MainChatController] Avatar image loading error for: " + finalSource);
                         if (exception != null) {
                             System.err.println("[MainChatController] Exception: " + exception.getMessage());
                             exception.printStackTrace();
                         }
                         Platform.runLater(() -> {
-                            circle.setFill(Color.web(fallbackColor));
+                            finalCircle.setFill(Color.web(finalFallbackColor));
                         });
                     }
                 });
                 
                 // Kiểm tra error ngay sau khi tạo Image
-                if (img.isError()) {
-                    Exception exception = img.getException();
+                if (finalImg.isError()) {
+                    Exception exception = finalImg.getException();
                     System.err.println("[MainChatController] Avatar image has error immediately, using fallback. Path: " + avatarPath);
                     if (exception != null) {
                         System.err.println("[MainChatController] Exception: " + exception.getMessage());
                     }
-                    circle.setFill(Color.web(fallbackColor));
+                    finalCircle.setFill(Color.web(finalFallbackColor));
                     return;
                 }
                 
                 // Nếu image đang load, đợi load xong
-                if (img.getProgress() < 1.0) {
-                    img.progressProperty().addListener((obs, oldVal, newVal) -> {
+                if (finalImg.getProgress() < 1.0) {
+                    finalImg.progressProperty().addListener((obs, oldVal, newVal) -> {
                         if (newVal.doubleValue() >= 1.0) {
                             Platform.runLater(() -> {
-                                if (img.isError()) {
-                                    Exception exception = img.getException();
-                                    System.err.println("[MainChatController] Avatar image failed to load: " + source);
+                                if (finalImg.isError()) {
+                                    Exception exception = finalImg.getException();
+                                    System.err.println("[MainChatController] Avatar image failed to load: " + finalSource);
                                     if (exception != null) {
                                         System.err.println("[MainChatController] Exception: " + exception.getMessage());
                                     }
-                                    circle.setFill(Color.web(fallbackColor));
+                                    finalCircle.setFill(Color.web(finalFallbackColor));
                                 } else {
-                                    circle.setFill(new ImagePattern(img));
-                                    System.out.println("[MainChatController] Avatar loaded successfully: " + source);
+                                    finalCircle.setFill(new ImagePattern(finalImg));
+                                    System.out.println("[MainChatController] Avatar loaded successfully: " + finalSource);
                                 }
                             });
                         }
                     });
                 } else {
                     // Image đã load xong
-                    if (img.isError()) {
-                        Exception exception = img.getException();
+                    if (finalImg.isError()) {
+                        Exception exception = finalImg.getException();
                         System.err.println("[MainChatController] Avatar image has error after load, using fallback. Path: " + avatarPath);
                         if (exception != null) {
                             System.err.println("[MainChatController] Exception: " + exception.getMessage());
                         }
-                        circle.setFill(Color.web(fallbackColor));
+                        finalCircle.setFill(Color.web(finalFallbackColor));
                     } else {
-                        circle.setFill(new ImagePattern(img));
-                        System.out.println("[MainChatController] Avatar loaded successfully (already loaded): " + source);
+                        finalCircle.setFill(new ImagePattern(finalImg));
+                        System.out.println("[MainChatController] Avatar loaded successfully (already loaded): " + finalSource);
                     }
                     return;
                 }
@@ -3106,7 +3113,7 @@ public class MainChatController {
             typingSocket = new MulticastSocket(TYPING_PORT);
             typingSocket.setReuseAddress(true);
             InetAddress group = InetAddress.getByName(TYPING_GROUP);
-            typingSocket.joinGroup(group);
+            typingSocket.joinGroup(new java.net.InetSocketAddress(group, TYPING_PORT), null);
             typingRunning.set(true);
             typingThread = new Thread(() -> listenTyping(group));
             typingThread.setDaemon(true);
