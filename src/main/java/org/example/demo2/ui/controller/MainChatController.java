@@ -329,14 +329,26 @@ public class MainChatController {
             );
             File file = chooser.showOpenDialog(btnEditProfile != null ? btnEditProfile.getScene().getWindow() : null);
             if (file != null) {
-                // Copy file vào thư mục avatars và lưu relative path
+                // Upload avatar lên HTTP File Server và lưu URL
                 try {
-                    String relativePath = copyAvatarToSharedFolder(file, Session.getUserId());
-                    avatarPathField.setText(relativePath);
+                    browseBtn.setDisable(true);
+                    browseBtn.setText("Đang tải...");
+                    org.example.demo2.service.FileTransferService.FileUploadResult result = 
+                        fileTransferService.uploadFile(file, Session.getUserId(), progress -> {
+                            // Có thể hiển thị progress nếu cần
+                        });
+                    // Lưu URL vào database
+                    String avatarUrl = result.getDownloadUrl();
+                    avatarPathField.setText(avatarUrl);
+                    // Update preview ngay lập tức
+                    applyAvatar(preview, avatarUrl, fallbackColorForUser(Session.getUserId()));
+                    browseBtn.setDisable(false);
+                    browseBtn.setText("Chọn ảnh");
                 } catch (IOException ex) {
-                    showError("Không thể copy file avatar: " + ex.getMessage());
-                    // Fallback: dùng absolute path nếu copy thất bại
-                    avatarPathField.setText(file.getAbsolutePath());
+                    showError("Không thể upload avatar: " + ex.getMessage());
+                    browseBtn.setDisable(false);
+                    browseBtn.setText("Chọn ảnh");
+                    ex.printStackTrace();
                 }
             }
         });
@@ -2845,13 +2857,14 @@ public class MainChatController {
     
     /**
      * Lấy file path từ relative path hoặc absolute path.
+     * (Giữ lại để backward compatibility với avatar cũ)
      */
     private File getAvatarFile(String avatarPath) {
         if (avatarPath == null || avatarPath.isBlank()) {
             return null;
         }
         
-        // Nếu là URL, return null (sẽ xử lý riêng)
+        // Nếu là URL, return null (sẽ xử lý riêng trong applyAvatar)
         if (avatarPath.startsWith("http://") || avatarPath.startsWith("https://")) {
             return null;
         }
