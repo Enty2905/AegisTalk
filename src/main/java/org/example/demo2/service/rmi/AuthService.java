@@ -47,6 +47,27 @@ public interface AuthService extends Remote {
      * @throws RemoteException Lỗi RMI
      */
     boolean isValidSession(Long userId) throws RemoteException;
+
+    /**
+     * Cập nhật hồ sơ (display name, avatar).
+     */
+    User updateProfile(Long userId, String displayName, String avatarPath) throws RemoteException;
+
+    /**
+     * Đổi mật khẩu (yêu cầu nhập mật khẩu cũ để xác thực).
+     * @return true nếu đổi thành công
+     */
+    boolean changePassword(Long userId, String oldPassword, String newPassword) throws RemoteException;
+
+    /**
+     * Lấy thông tin user (dùng cho cache avatar).
+     */
+    User findById(Long userId) throws RemoteException;
+
+    /**
+     * Kiểm tra user có đang online (có session hợp lệ).
+     */
+    boolean isOnline(Long userId) throws RemoteException;
 }
 
 

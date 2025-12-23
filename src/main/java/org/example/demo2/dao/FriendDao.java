@@ -93,13 +93,17 @@ public class FriendDao {
         List<User> friends = new ArrayList<>();
         try (Connection conn = org.example.demo2.ui.DBTest.getConnection();
              PreparedStatement st = conn.prepareStatement(
-                     "SELECT u.id, u.username, u.display_name FROM friends f " +
+                     "SELECT u.id, u.username, u.display_name, u.avatar_path FROM friends f " +
                      "JOIN users u ON f.friend_id = u.id " +
                      "WHERE f.user_id=?")) {
             st.setLong(1, userId);
             ResultSet rs = st.executeQuery();
             while (rs.next()) {
-                friends.add(new User(rs.getLong("id"), rs.getString("username"), rs.getString("display_name")));
+                friends.add(new User(
+                        rs.getLong("id"),
+                        rs.getString("username"),
+                        rs.getString("display_name"),
+                        rs.getString("avatar_path")));
             }
         }
         return friends;
@@ -112,13 +116,17 @@ public class FriendDao {
         List<User> requests = new ArrayList<>();
         try (Connection conn = org.example.demo2.ui.DBTest.getConnection();
              PreparedStatement st = conn.prepareStatement(
-                     "SELECT u.id, u.username, u.display_name FROM friend_requests fr " +
+                     "SELECT u.id, u.username, u.display_name, u.avatar_path FROM friend_requests fr " +
                      "JOIN users u ON fr.from_user_id = u.id " +
                      "WHERE fr.to_user_id=? AND fr.status='PENDING'")) {
             st.setLong(1, userId);
             ResultSet rs = st.executeQuery();
             while (rs.next()) {
-                requests.add(new User(rs.getLong("id"), rs.getString("username"), rs.getString("display_name")));
+                requests.add(new User(
+                        rs.getLong("id"),
+                        rs.getString("username"),
+                        rs.getString("display_name"),
+                        rs.getString("avatar_path")));
             }
         }
         return requests;
@@ -141,6 +149,40 @@ public class FriendDao {
                 return rs.getInt("cnt") > 0;
             }
             return false;
+        }
+    }
+
+    /**
+     * Huỷ kết bạn (xoá cả hai chiều và các request còn lại nếu có).
+     */
+    public boolean removeFriend(Long userId, Long friendId) throws SQLException {
+        try (Connection conn = org.example.demo2.ui.DBTest.getConnection()) {
+            conn.setAutoCommit(false);
+            try {
+                // Xoá quan hệ friends 2 chiều
+                try (PreparedStatement st = conn.prepareStatement(
+                        "DELETE FROM friends WHERE (user_id=? AND friend_id=?) OR (user_id=? AND friend_id=?)")) {
+                    st.setLong(1, userId);
+                    st.setLong(2, friendId);
+                    st.setLong(3, friendId);
+                    st.setLong(4, userId);
+                    st.executeUpdate();
+                }
+                // Xoá các friend_requests còn lại giữa 2 người
+                try (PreparedStatement st = conn.prepareStatement(
+                        "DELETE FROM friend_requests WHERE (from_user_id=? AND to_user_id=?) OR (from_user_id=? AND to_user_id=?)")) {
+                    st.setLong(1, userId);
+                    st.setLong(2, friendId);
+                    st.setLong(3, friendId);
+                    st.setLong(4, userId);
+                    st.executeUpdate();
+                }
+                conn.commit();
+                return true;
+            } catch (SQLException e) {
+                conn.rollback();
+                throw e;
+            }
         }
     }
 }

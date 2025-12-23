@@ -153,7 +153,7 @@ public class LoginController {
             User user = clientService.login(username, password);
             
             if (user != null) {
-                Session.setUser(user.id(), user.displayName());
+                Session.setUser(user.id(), user.displayName(), user.avatarPath());
                 showStatus("✓ Đăng nhập thành công!", true);
                 System.out.println("[LoginController] Login successful: user ID=" + user.id());
                 
@@ -206,7 +206,7 @@ public class LoginController {
             User user = clientService.register(username, password, displayName);
             
             if (user != null) {
-                Session.setUser(user.id(), user.displayName());
+                Session.setUser(user.id(), user.displayName(), user.avatarPath());
                 showStatus("✓ Đăng ký thành công!", true);
                 System.out.println("[LoginController] Register successful: user ID=" + user.id());
                 

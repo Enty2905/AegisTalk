@@ -61,7 +61,7 @@
                     <Insets bottom="16" left="20" right="20" top="12" />
                 </padding>
                 <StackPane>
-                    <Circle fx:id="currentUserAvatar" radius="20" style="-fx-fill: #6366f1;" />
+                    <Circle fx:id="currentUserAvatar" radius="20" />
                     <Circle radius="6" styleClass="online-indicator" translateX="14" translateY="14" />
                 </StackPane>
                 <VBox spacing="2" HBox.hgrow="ALWAYS">
@@ -71,6 +71,11 @@
                 <Button fx:id="btnToggleNotification" onAction="#handleToggleNotification" prefHeight="36" prefWidth="47.0" styleClass="icon-button" text="🔔">
                     <tooltip>
                         <Tooltip text="Bật/Tắt thông báo" />
+                    </tooltip>
+                </Button>
+                <Button fx:id="btnEditProfile" onAction="#handleEditProfile" prefHeight="36" prefWidth="47.0" styleClass="icon-button" text="✏️">
+                    <tooltip>
+                        <Tooltip text="Cập nhật hồ sơ" />
                     </tooltip>
                 </Button>
                 <Button fx:id="btnLogout" onAction="#handleLogout" prefHeight="37.0" prefWidth="45.0" styleClass="icon-button" text="🚪">
@@ -107,11 +112,6 @@
 
                 <!-- Action Buttons -->
                 <HBox spacing="8">
-                    <Button fx:id="btnCall" prefHeight="44" prefWidth="44" styleClass="icon-button" text="📞">
-                        <tooltip>
-                            <Tooltip text="Gọi thoại" />
-                        </tooltip>
-                    </Button>
                     <Button fx:id="btnVideoCall" prefHeight="44" prefWidth="44" styleClass="icon-button" text="📹">
                         <tooltip>
                             <Tooltip text="Video call" />
@@ -119,7 +119,7 @@
                     </Button>
                     <Button fx:id="btnInfo" prefHeight="44" prefWidth="44" styleClass="icon-button" text="ℹ">
                         <tooltip>
-                            <Tooltip text="Thông tin" />
+                            <Tooltip text="Thông tin cuộc chat" />
                         </tooltip>
                     </Button>
                 </HBox>
@@ -213,20 +213,8 @@
                     <Insets bottom="24" />
                 </padding>
                 <VBox alignment="CENTER" spacing="6">
-                    <Button prefHeight="48" prefWidth="48" styleClass="icon-button" text="📞" />
-                    <Label styleClass="muted-text" text="Gọi" />
-                </VBox>
-                <VBox alignment="CENTER" spacing="6">
-                    <Button prefHeight="48" prefWidth="48" styleClass="icon-button" text="📹" />
+                    <Button fx:id="btnInfoVideoCall" onAction="#handleVideoCall" prefHeight="48" prefWidth="48" styleClass="icon-button" text="📹" />
                     <Label styleClass="muted-text" text="Video" />
-                </VBox>
-                <VBox alignment="CENTER" spacing="6">
-                    <Button prefHeight="48" prefWidth="48" styleClass="icon-button" text="🔔" />
-                    <Label styleClass="muted-text" text="Thông báo" />
-                </VBox>
-                <VBox alignment="CENTER" spacing="6">
-                    <Button fx:id="btnSearchMessages" onAction="#handleSearchMessages" prefHeight="48" prefWidth="48" styleClass="icon-button" text="🔍" />
-                    <Label styleClass="muted-text" text="Tìm kiếm" />
                 </VBox>
             </HBox>
 
@@ -242,8 +230,7 @@
 
             <!-- Action Buttons -->
             <VBox spacing="10">
-                <Button fx:id="btnAddMember" maxWidth="Infinity" prefHeight="44" styleClass="info-button" text="👤  Mời thêm người" />
-                <Button maxWidth="Infinity" prefHeight="44" styleClass="info-button" text="📁  File &amp; phương tiện" />
+                <Button fx:id="btnShowFiles" onAction="#handleShowFiles" maxWidth="Infinity" prefHeight="44" styleClass="info-button" text="📁  File &amp; phương tiện" />
             </VBox>
 
             <!-- Info Sections -->
@@ -254,7 +241,7 @@
                 <Label styleClass="info-section-title" text="QUYỀN RIÊNG TƯ" />
                 <VBox spacing="4">
                     <Button fx:id="btnMuteConversation" alignment="CENTER_LEFT" maxWidth="Infinity" onAction="#handleMuteCurrentConversation" style="-fx-background-color: transparent; -fx-cursor: hand;" styleClass="info-item" text="🔔  Tắt thông báo" />
-                    <Label style="-fx-text-fill: #ef4444;" styleClass="info-item" text="🚫  Chặn" />
+                    <Button fx:id="btnUnfriend" alignment="CENTER_LEFT" maxWidth="Infinity" onAction="#handleUnfriend" style="-fx-background-color: transparent; -fx-cursor: hand;" styleClass="info-item" text="❌  Huỷ kết bạn" />
                 </VBox>
             </VBox>
         </VBox>

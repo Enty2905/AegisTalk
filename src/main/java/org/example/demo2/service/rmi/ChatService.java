@@ -65,6 +65,11 @@ public interface ChatService extends Remote {
      * @throws RemoteException Lỗi RMI
      */
     String getUserDisplayName(Long userId) throws RemoteException;
+
+    /**
+     * Xoá toàn bộ tin nhắn trong một conversation.
+     */
+    boolean deleteConversationMessages(String conversationId) throws RemoteException;
 }
 
 

@@ -43,8 +43,6 @@
                 <Label fx:id="lblCallDuration" text="00:00" styleClass="call-duration-new"/>
                 <Label fx:id="lblCallStatus" text="Đang chờ kết nối..." styleClass="call-status-small"/>
             </VBox>
-
-            <Button text="✕" styleClass="call-close-btn" onAction="#handleBackToChat"/>
         </HBox>
     </top>
 
@@ -135,7 +133,7 @@
 
                 <!-- End Call Button -->
                 <Button fx:id="btnLeave"
-                        text="📵"
+                        text="🔴"
                         onAction="#handleLeaveCall"
                         styleClass="control-btn control-btn-end"/>
             </HBox>

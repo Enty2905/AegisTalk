@@ -1,3 +1,99 @@
+.dialog-pane.profile-dialog {
+    -fx-background-color: #0b1220;
+    -fx-background-radius: 16;
+    -fx-border-radius: 16;
+    -fx-border-color: rgba(71, 85, 105, 0.35);
+    -fx-border-width: 1;
+    -fx-effect: dropshadow(gaussian, rgba(0,0,0,0.45), 24, 0.2, 0, 8);
+}
+
+.dialog-pane.profile-dialog > .header-panel {
+    -fx-background-color: transparent;
+    -fx-padding: 0 0 6 0;
+}
+
+.dialog-pane.profile-dialog .text-field,
+.dialog-pane.profile-dialog .password-field {
+    -fx-background-radius: 14;
+    -fx-border-radius: 14;
+    -fx-padding: 10 14; /* gọn hơn padding default */
+}
+
+/* ===== FIX TitledPane: bỏ thanh xám, làm dạng card ===== */
+.dialog-pane.profile-dialog .titled-pane.profile-section {
+    -fx-text-fill: #e2e8f0;
+}
+
+.dialog-pane.profile-dialog .titled-pane.profile-section > .title {
+    -fx-background-color: #111b2e;
+    -fx-background-radius: 12 12 0 0;
+    -fx-border-color: rgba(71, 85, 105, 0.35);
+    -fx-border-width: 1;
+    -fx-border-radius: 12 12 0 0;
+    -fx-padding: 10 12;
+}
+
+.dialog-pane.profile-dialog .titled-pane.profile-section:collapsed > .title {
+    -fx-background-radius: 12;
+    -fx-border-radius: 12;
+}
+
+.dialog-pane.profile-dialog .titled-pane.profile-section > .content {
+    -fx-background-color: #0f172a;
+    -fx-background-radius: 0 0 12 12;
+    -fx-border-color: rgba(71, 85, 105, 0.35);
+    -fx-border-width: 0 1 1 1;
+    -fx-border-radius: 0 0 12 12;
+    -fx-padding: 14;
+}
+
+.dialog-pane.profile-dialog .titled-pane.profile-section > .title > .arrow-button .arrow {
+    -fx-background-color: #94a3b8; /* màu mũi tên */
+}
+
+/* ===== Buttons trong profile dialog ===== */
+.dialog-pane.profile-dialog .profile-browse-btn {
+    -fx-background-color: rgba(99, 102, 241, 0.16);
+    -fx-text-fill: #c7d2fe;
+    -fx-font-weight: 700;
+    -fx-background-radius: 12;
+    -fx-padding: 10 14;
+    -fx-cursor: hand;
+}
+.dialog-pane.profile-dialog .profile-browse-btn:hover {
+    -fx-background-color: rgba(99, 102, 241, 0.24);
+}
+
+.dialog-pane.profile-dialog .profile-ok-btn {
+    -fx-background-color: #22c55e;
+    -fx-text-fill: white;
+    -fx-font-weight: 800;
+    -fx-background-radius: 12;
+    -fx-padding: 10 18;
+    -fx-cursor: hand;
+}
+.dialog-pane.profile-dialog .profile-ok-btn:hover {
+    -fx-background-color: #16a34a;
+}
+
+.dialog-pane.profile-dialog .profile-cancel-btn {
+    -fx-background-color: transparent;
+    -fx-text-fill: #cbd5e1;
+    -fx-border-color: rgba(71, 85, 105, 0.55);
+    -fx-border-width: 1;
+    -fx-border-radius: 12;
+    -fx-background-radius: 12;
+    -fx-padding: 10 18;
+    -fx-cursor: hand;
+}
+.dialog-pane.profile-dialog .profile-cancel-btn:hover {
+    -fx-background-color: rgba(71, 85, 105, 0.18);
+}
+
+.dialog-pane.profile-dialog .profile-label {
+    -fx-text-fill: #e2e8f0;
+    -fx-font-weight: 600;
+}
 /*
  * AegisTalk Premium Theme
  * Modern Dark Theme - JavaFX Compatible
@@ -877,6 +973,30 @@
     -fx-background-color: #6366f1;
 }
 
+/* ==================== PROFILE DIALOG ==================== */
+.profile-dialog {
+    -fx-background-color: #0f172a;
+    -fx-padding: 18;
+}
+.profile-header {
+    -fx-alignment: center-left;
+}
+.profile-header-icon {
+    -fx-font-size: 26px;
+}
+.profile-title {
+    -fx-text-fill: #e2e8f0;
+    -fx-font-size: 16px;
+    -fx-font-weight: 700;
+}
+.profile-subtitle {
+    -fx-text-fill: #94a3b8;
+    -fx-font-size: 12px;
+}
+.profile-error {
+    -fx-text-fill: #ef4444;
+    -fx-font-size: 12px;
+}
 .tab-pane .tab:selected .tab-label {
     -fx-text-fill: #ffffff;
 }
@@ -941,6 +1061,132 @@
     100% { -fx-opacity: 1; }
 }
 
+/* ==================== FILE DIALOG ==================== */
+.dialog-pane.file-dialog {
+    -fx-background-color: #0f172a;
+    -fx-background-radius: 16;
+    -fx-border-radius: 16;
+    -fx-border-color: rgba(71, 85, 105, 0.35);
+    -fx-border-width: 1;
+    -fx-effect: dropshadow(gaussian, rgba(0,0,0,0.45), 24, 0.2, 0, 8);
+}
+
+.dialog-pane.file-dialog > .header-panel {
+    -fx-background-color: transparent;
+    -fx-padding: 0;
+}
+
+.dialog-pane.file-dialog > .content {
+    -fx-background-color: #0f172a;
+    -fx-padding: 0;
+}
+
+.file-header-icon {
+    -fx-font-size: 32px;
+}
+
+.file-header-title {
+    -fx-text-fill: #ffffff;
+    -fx-font-size: 20px;
+    -fx-font-weight: 700;
+}
+
+.file-header-subtitle {
+    -fx-text-fill: #ffffff;
+    -fx-font-size: 13px;
+}
+
+.file-item {
+    -fx-background-color: #1e293b;
+    -fx-background-radius: 12;
+    -fx-border-color: rgba(71, 85, 105, 0.3);
+    -fx-border-width: 1;
+    -fx-border-radius: 12;
+    -fx-cursor: hand;
+}
+
+.file-item:hover {
+    -fx-background-color: #334155;
+    -fx-border-color: rgba(99, 102, 241, 0.5);
+}
+
+.file-download-btn {
+    -fx-background-color: rgba(99, 102, 241, 0.2);
+    -fx-text-fill: #c7d2fe;
+    -fx-font-size: 13px;
+    -fx-font-weight: 600;
+    -fx-background-radius: 10;
+    -fx-padding: 8 16;
+    -fx-cursor: hand;
+    -fx-border-color: rgba(99, 102, 241, 0.4);
+    -fx-border-width: 1;
+    -fx-border-radius: 10;
+}
+
+.file-download-btn:hover {
+    -fx-background-color: rgba(99, 102, 241, 0.35);
+    -fx-text-fill: #ffffff;
+    -fx-border-color: rgba(99, 102, 241, 0.6);
+}
+
+.file-download-btn:pressed {
+    -fx-background-color: rgba(99, 102, 241, 0.5);
+}
+
+.file-close-btn {
+    -fx-background-color: transparent;
+    -fx-text-fill: #94a3b8;
+    -fx-font-size: 14px;
+    -fx-font-weight: 600;
+    -fx-background-radius: 8;
+    -fx-padding: 8 16;
+    -fx-cursor: hand;
+    -fx-border-color: rgba(71, 85, 105, 0.5);
+    -fx-border-width: 1;
+    -fx-border-radius: 8;
+}
+
+.file-close-btn:hover {
+    -fx-background-color: rgba(71, 85, 105, 0.2);
+    -fx-text-fill: #e2e8f0;
+    -fx-border-color: rgba(71, 85, 105, 0.7);
+}
+
+/* ScrollPane styling for file dialog */
+.dialog-pane.file-dialog .scroll-pane {
+    -fx-background-color: transparent;
+    -fx-background: transparent;
+}
+
+.dialog-pane.file-dialog .scroll-pane > .viewport {
+    -fx-background-color: transparent;
+}
+
+.dialog-pane.file-dialog .scroll-bar {
+    -fx-background-color: transparent;
+}
+
+.dialog-pane.file-dialog .scroll-bar .thumb {
+    -fx-background-color: #475569;
+    -fx-background-radius: 6;
+}
+
+.dialog-pane.file-dialog .scroll-bar .thumb:hover {
+    -fx-background-color: #6366f1;
+}
+
+.dialog-pane.file-dialog .scroll-bar .increment-button,
+.dialog-pane.file-dialog .scroll-bar .decrement-button {
+    -fx-background-color: transparent;
+    -fx-padding: 0;
+}
+
+.dialog-pane.file-dialog .scroll-bar .increment-arrow,
+.dialog-pane.file-dialog .scroll-bar .decrement-arrow {
+    -fx-shape: "";
+    -fx-padding: 0;
+}
+
 /* ==================== UTILITY CLASSES ==================== */
 .rounded-sm { -fx-background-radius: 4; -fx-border-radius: 4; }
 .rounded-md { -fx-background-radius: 8; -fx-border-radius: 8; }
@@ -952,3 +1198,167 @@
 .shadow-md { -fx-effect: dropshadow(gaussian, rgba(0, 0, 0, 0.2), 10, 0, 0, 3); }
 .shadow-lg { -fx-effect: dropshadow(gaussian, rgba(0, 0, 0, 0.3), 20, 0, 0, 5); }
 .shadow-glow { -fx-effect: dropshadow(gaussian, rgba(99, 102, 241, 0.4), 20, 0, 0, 0); }
+
+/* ==================== MESSAGE BUBBLES ==================== */
+.message-bubble-own {
+    -fx-background-color: #3b82f6;
+    -fx-background-radius: 18 18 4 18;
+    -fx-padding: 12 16;
+}
+
+.message-bubble-other {
+    -fx-background-color: #374151;
+    -fx-background-radius: 18 18 18 4;
+    -fx-padding: 12 16;
+}
+
+.message-text-own {
+    -fx-text-fill: #ffffff;
+    -fx-font-size: 14px;
+}
+
+.message-text-other {
+    -fx-text-fill: #e2e8f0;
+    -fx-font-size: 14px;
+}
+
+/* ==================== NOTIFICATION BUTTONS ==================== */
+.notification-enabled {
+    -fx-background-color: rgba(34, 197, 94, 0.2);
+    -fx-text-fill: #22c55e;
+}
+
+.notification-disabled {
+    -fx-background-color: rgba(239, 68, 68, 0.2);
+    -fx-text-fill: #ef4444;
+}
+
+/* ==================== SEARCH RESULTS ==================== */
+.add-friend-button {
+    -fx-background-color: #3b82f6;
+    -fx-text-fill: white;
+    -fx-background-radius: 8px;
+    -fx-padding: 8px 14px;
+    -fx-font-weight: 600;
+    -fx-font-size: 12px;
+    -fx-cursor: hand;
+}
+
+.add-friend-button:hover {
+    -fx-background-color: #2563eb;
+}
+
+/* ==================== SYSTEM MESSAGES ==================== */
+.system-message {
+    -fx-text-fill: #94a3b8;
+    -fx-font-size: 13px;
+    -fx-font-style: italic;
+    -fx-background-color: rgba(71, 85, 105, 0.2);
+    -fx-background-radius: 16px;
+    -fx-padding: 8px 16px;
+}
+
+/* ==================== GROUP DIALOG ==================== */
+.group-dialog {
+    -fx-background-color: #1e1e3f;
+}
+
+.group-form {
+    -fx-background-color: #1e1e3f;
+}
+
+.group-header-title {
+    -fx-font-size: 20px;
+    -fx-font-weight: bold;
+    -fx-text-fill: #ffffff;
+}
+
+.group-header-subtitle {
+    -fx-font-size: 13px;
+    -fx-text-fill: #a0aec0;
+}
+
+.group-label {
+    -fx-font-size: 13px;
+    -fx-font-weight: 600;
+    -fx-text-fill: #ffffff;
+}
+
+.group-text-field {
+    -fx-background-color: #16213e;
+    -fx-text-fill: #ffffff;
+    -fx-prompt-text-fill: #718096;
+    -fx-background-radius: 10;
+    -fx-border-color: #4a5568;
+    -fx-border-width: 1;
+    -fx-border-radius: 10;
+    -fx-padding: 12 16;
+    -fx-font-size: 14px;
+}
+
+.group-text-field:focused {
+    -fx-border-color: #6366f1;
+}
+
+.group-list-view {
+    -fx-background-color: #16213e;
+    -fx-background-radius: 10;
+    -fx-border-color: #4a5568;
+    -fx-border-width: 1;
+    -fx-border-radius: 10;
+}
+
+.group-list-cell {
+    -fx-background-color: transparent;
+}
+
+.group-list-cell.selected {
+    -fx-background-color: rgba(99, 102, 241, 0.2);
+    -fx-background-radius: 8;
+}
+
+.group-member-name {
+    -fx-text-fill: #ffffff;
+    -fx-font-size: 14px;
+}
+
+.group-check-icon {
+    -fx-text-fill: #10b981;
+    -fx-font-size: 16px;
+    -fx-font-weight: bold;
+}
+
+.group-hint {
+    -fx-font-size: 12px;
+    -fx-text-fill: #718096;
+}
+
+.group-create-button {
+    -fx-background-color: #6366f1;
+    -fx-text-fill: #ffffff;
+    -fx-font-weight: bold;
+    -fx-background-radius: 10;
+    -fx-padding: 10 24;
+    -fx-cursor: hand;
+}
+
+.group-create-button:hover {
+    -fx-background-color: #4f46e5;
+}
+
+.group-create-button:disabled {
+    -fx-background-color: #374151;
+    -fx-text-fill: #6b7280;
+}
+
+.group-cancel-button {
+    -fx-background-color: #374151;
+    -fx-text-fill: #ffffff;
+    -fx-background-radius: 10;
+    -fx-padding: 10 24;
+    -fx-cursor: hand;
+}
+
+.group-cancel-button:hover {
+    -fx-background-color: #475569;
+}

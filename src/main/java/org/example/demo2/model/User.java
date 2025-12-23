@@ -8,7 +8,8 @@ import java.io.Serializable;
 public record User(
         Long id,
         String username,
-        String displayName
+        String displayName,
+        String avatarPath
 ) implements Serializable {
-    private static final long serialVersionUID = 1L;
+    private static final long serialVersionUID = 2L;
 }

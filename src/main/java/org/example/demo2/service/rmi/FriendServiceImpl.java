@@ -99,6 +99,15 @@ public class FriendServiceImpl extends UnicastRemoteObject implements FriendServ
             throw new RemoteException("Database error: " + e.getMessage(), e);
         }
     }
+
+    @Override
+    public boolean removeFriend(Long userId, Long friendId) throws RemoteException {
+        try {
+            return friendDao.removeFriend(userId, friendId);
+        } catch (SQLException e) {
+            throw new RemoteException("Database error: " + e.getMessage(), e);
+        }
+    }
 }
 
 

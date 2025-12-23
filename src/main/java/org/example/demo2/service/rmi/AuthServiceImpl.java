@@ -41,7 +41,7 @@ public class AuthServiceImpl extends UnicastRemoteObject implements AuthService 
             System.out.println("[AuthService] Register: username=" + username + ", hash=" + passwordHash.substring(0, Math.min(32, passwordHash.length())) + "...");
             
             // Tạo user mới
-            User user = userDao.create(username, passwordHash, displayName);
+            User user = userDao.create(username, passwordHash, displayName, null);
             if (user != null) {
                 activeSessions.put(user.id(), System.currentTimeMillis());
                 System.out.println("[AuthService] Register successful: user ID=" + user.id() + ", username=" + username);
@@ -116,6 +116,55 @@ public class AuthServiceImpl extends UnicastRemoteObject implements AuthService 
         // Cập nhật last access time
         activeSessions.put(userId, System.currentTimeMillis());
         return true;
+    }
+
+    @Override
+    public boolean isOnline(Long userId) throws RemoteException {
+        return isValidSession(userId);
+    }
+
+    @Override
+    public User updateProfile(Long userId, String displayName, String avatarPath) throws RemoteException {
+        try {
+            User updated = userDao.updateProfile(userId, displayName, avatarPath);
+            if (updated != null) {
+                activeSessions.put(userId, System.currentTimeMillis());
+            }
+            return updated;
+        } catch (SQLException e) {
+            throw new RemoteException("Database error: " + e.getMessage(), e);
+        }
+    }
+
+    @Override
+    public boolean changePassword(Long userId, String oldPassword, String newPassword) throws RemoteException {
+        try {
+            String storedHash = userDao.getPasswordHash(userId);
+            if (storedHash == null) {
+                return false;
+            }
+            String oldHash = hashPassword(oldPassword);
+            if (!storedHash.equals(oldHash)) {
+                return false;
+            }
+            String newHash = hashPassword(newPassword);
+            boolean updated = userDao.updatePassword(userId, newHash);
+            if (updated) {
+                activeSessions.put(userId, System.currentTimeMillis());
+            }
+            return updated;
+        } catch (SQLException e) {
+            throw new RemoteException("Database error: " + e.getMessage(), e);
+        }
+    }
+
+    @Override
+    public User findById(Long userId) throws RemoteException {
+        try {
+            return userDao.findById(userId);
+        } catch (SQLException e) {
+            throw new RemoteException("Database error: " + e.getMessage(), e);
+        }
     }
     
     private String hashPassword(String password) throws RemoteException {

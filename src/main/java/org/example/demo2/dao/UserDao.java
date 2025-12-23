@@ -17,11 +17,15 @@ public class UserDao {
     public User findById(Long id) throws SQLException {
         try (Connection conn = org.example.demo2.ui.DBTest.getConnection();
              PreparedStatement st = conn.prepareStatement(
-                     "SELECT id, username, display_name FROM users WHERE id=?")) {
+                     "SELECT id, username, display_name, avatar_path FROM users WHERE id=?")) {
             st.setLong(1, id);
             ResultSet rs = st.executeQuery();
             if (rs.next()) {
-                return new User(rs.getLong("id"), rs.getString("username"), rs.getString("display_name"));
+                return new User(
+                        rs.getLong("id"),
+                        rs.getString("username"),
+                        rs.getString("display_name"),
+                        rs.getString("avatar_path"));
             }
             return null;
         }
@@ -33,11 +37,15 @@ public class UserDao {
     public User findByUsername(String username) throws SQLException {
         try (Connection conn = org.example.demo2.ui.DBTest.getConnection();
              PreparedStatement st = conn.prepareStatement(
-                     "SELECT id, username, display_name FROM users WHERE username=?")) {
+                     "SELECT id, username, display_name, avatar_path FROM users WHERE username=?")) {
             st.setString(1, username);
             ResultSet rs = st.executeQuery();
             if (rs.next()) {
-                return new User(rs.getLong("id"), rs.getString("username"), rs.getString("display_name"));
+                return new User(
+                        rs.getLong("id"),
+                        rs.getString("username"),
+                        rs.getString("display_name"),
+                        rs.getString("avatar_path"));
             }
             return null;
         }
@@ -51,13 +59,17 @@ public class UserDao {
         String pattern = "%" + keyword + "%";
         try (Connection conn = org.example.demo2.ui.DBTest.getConnection();
              PreparedStatement st = conn.prepareStatement(
-                     "SELECT id, username, display_name FROM users " +
+                     "SELECT id, username, display_name, avatar_path FROM users " +
                      "WHERE username LIKE ? OR display_name LIKE ? LIMIT 50")) {
             st.setString(1, pattern);
             st.setString(2, pattern);
             ResultSet rs = st.executeQuery();
             while (rs.next()) {
-                users.add(new User(rs.getLong("id"), rs.getString("username"), rs.getString("display_name")));
+                users.add(new User(
+                        rs.getLong("id"),
+                        rs.getString("username"),
+                        rs.getString("display_name"),
+                        rs.getString("avatar_path")));
             }
         }
         return users;
@@ -66,18 +78,19 @@ public class UserDao {
     /**
      * Tạo user mới.
      */
-    public User create(String username, String passwordHash, String displayName) throws SQLException {
+    public User create(String username, String passwordHash, String displayName, String avatarPath) throws SQLException {
         try (Connection conn = org.example.demo2.ui.DBTest.getConnection();
              PreparedStatement st = conn.prepareStatement(
-                     "INSERT INTO users(username, password_hash, display_name) VALUES (?, ?, ?)",
+                     "INSERT INTO users(username, password_hash, display_name, avatar_path) VALUES (?, ?, ?, ?)",
                      Statement.RETURN_GENERATED_KEYS)) {
             st.setString(1, username);
             st.setString(2, passwordHash);
             st.setString(3, displayName);
+            st.setString(4, avatarPath);
             st.executeUpdate();
             ResultSet rs = st.getGeneratedKeys();
             if (rs.next()) {
-                return new User(rs.getLong(1), username, displayName);
+                return new User(rs.getLong(1), username, displayName, avatarPath);
             }
             return null;
         }
@@ -96,6 +109,34 @@ public class UserDao {
                 return rs.getString("password_hash");
             }
             return null;
+        }
+    }
+
+    /**
+     * Cập nhật hồ sơ người dùng (display name + avatar).
+     */
+    public User updateProfile(Long userId, String displayName, String avatarPath) throws SQLException {
+        try (Connection conn = org.example.demo2.ui.DBTest.getConnection();
+             PreparedStatement st = conn.prepareStatement(
+                     "UPDATE users SET display_name=?, avatar_path=? WHERE id=?")) {
+            st.setString(1, displayName);
+            st.setString(2, avatarPath);
+            st.setLong(3, userId);
+            st.executeUpdate();
+        }
+        return findById(userId);
+    }
+
+    /**
+     * Đổi mật khẩu (đã hash).
+     */
+    public boolean updatePassword(Long userId, String newPasswordHash) throws SQLException {
+        try (Connection conn = org.example.demo2.ui.DBTest.getConnection();
+             PreparedStatement st = conn.prepareStatement(
+                     "UPDATE users SET password_hash=? WHERE id=?")) {
+            st.setString(1, newPasswordHash);
+            st.setLong(2, userId);
+            return st.executeUpdate() > 0;
         }
     }
 }

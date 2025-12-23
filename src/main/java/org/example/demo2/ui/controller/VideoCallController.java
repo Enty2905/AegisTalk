@@ -5,6 +5,7 @@ import javafx.fxml.FXML;
 import javafx.scene.control.Alert;
 import javafx.scene.control.Button;
 import javafx.scene.control.Label;
+import javafx.stage.Stage;
 import javafx.scene.image.Image;
 import javafx.scene.image.ImageView;
 import javafx.scene.image.WritableImage;
@@ -93,6 +94,7 @@ public class VideoCallController {
     
     // Callback để đóng video call window
     private Runnable onCloseCallback;
+    private Stage callStage;
     
     public void setClientService(AegisTalkClientService clientService) {
         this.clientService = clientService;
@@ -100,6 +102,10 @@ public class VideoCallController {
     
     public void setOnCloseCallback(Runnable callback) {
         this.onCloseCallback = callback;
+    }
+    
+    public void setCallStage(Stage stage) {
+        this.callStage = stage;
     }
     
     /**
@@ -308,9 +314,10 @@ public class VideoCallController {
     @FXML
     public void handleLeaveCall() {
         if (currentCallSessionId == null) {
-            if (onCloseCallback != null) {
-                onCloseCallback.run();
-            }
+            // Đóng cửa sổ nếu không có cuộc gọi
+            Platform.runLater(() -> {
+                closeCallWindow();
+            });
             return;
         }
         
@@ -333,17 +340,35 @@ public class VideoCallController {
                 stopCallDurationTimer();
                 stopVideoStreaming();
                 
+                // Đóng cửa sổ sau khi kết thúc cuộc gọi
                 Platform.runLater(() -> {
-                    if (onCloseCallback != null) {
-                        onCloseCallback.run();
-                    }
+                    closeCallWindow();
                 });
             } catch (RemoteException e) {
                 Platform.runLater(() -> {
                     showError("Lỗi: " + e.getMessage());
+                    // Vẫn đóng cửa sổ ngay cả khi có lỗi
+                    closeCallWindow();
                 });
             }
         }).start();
+    }
+    
+    /**
+     * Đóng cửa sổ video call.
+     */
+    private void closeCallWindow() {
+        if (callStage != null) {
+            callStage.close();
+        } else if (onCloseCallback != null) {
+            onCloseCallback.run();
+        } else if (lblCallStatus != null) {
+            // Fallback: lấy stage từ scene
+            Stage stage = (Stage) lblCallStatus.getScene().getWindow();
+            if (stage != null) {
+                stage.close();
+            }
+        }
     }
     
     @FXML

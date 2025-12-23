@@ -83,6 +83,11 @@ public interface FriendService extends Remote {
      * @throws RemoteException Lỗi RMI
      */
     boolean areFriends(Long userId1, Long userId2) throws RemoteException;
+
+    /**
+     * Huỷ kết bạn (xoá cả 2 chiều).
+     */
+    boolean removeFriend(Long userId, Long friendId) throws RemoteException;
 }
 
 

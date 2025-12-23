@@ -1,6 +1,7 @@
 package org.example.demo2.ui.controller;
 
 import javafx.application.Platform;
+import javafx.beans.binding.BooleanBinding;
 import javafx.collections.FXCollections;
 import javafx.collections.ObservableList;
 import javafx.concurrent.ScheduledService;
@@ -9,10 +10,14 @@ import javafx.fxml.FXML;
 import javafx.geometry.Insets;
 import javafx.geometry.Pos;
 import javafx.scene.control.*;
+import javafx.scene.image.Image;
 import javafx.scene.layout.*;
 import javafx.scene.media.AudioClip;
+import javafx.scene.paint.Color;
+import javafx.scene.paint.ImagePattern;
 import javafx.scene.shape.Circle;
 import javafx.util.Duration;
+import javafx.stage.FileChooser;
 import org.example.demo2.Session;
 import org.example.demo2.client.AegisTalkClientService;
 import org.example.demo2.model.ChatMessage;
@@ -24,23 +29,23 @@ import org.example.demo2.net.chat.ChatClient;
 import org.example.demo2.net.moderation.ModerationClient;
 import org.example.demo2.service.rmi.CallService;
 
+import java.io.File;
 import java.io.IOException;
+import java.net.DatagramPacket;
+import java.net.InetAddress;
+import java.net.MulticastSocket;
+import java.nio.charset.StandardCharsets;
 import java.rmi.RemoteException;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.Objects;
+import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.stream.Collectors;
 
-/**
- * Main Chat Controller với giao diện giống Messenger.
- * 
- * Áp dụng:
- * - RMI: Tìm kiếm user, quản lý bạn bè
- * - TCP: Chat messages
- * - HTTP: Moderation
- */
+
 public class MainChatController {
     
     // ========== Left Sidebar ==========
@@ -54,6 +59,7 @@ public class MainChatController {
     @FXML private ListView<ContactItem> lstContacts;
     @FXML private Label lblCurrentUser;
     @FXML private Circle currentUserAvatar;
+    @FXML private Button btnEditProfile;
     @FXML private Button btnLogout;
     
     // ========== Center Chat ==========
@@ -61,7 +67,6 @@ public class MainChatController {
     @FXML private Circle statusIndicator;
     @FXML private Label lblChatName;
     @FXML private Label lblChatStatus;
-    @FXML private Button btnCall;
     @FXML private Button btnVideoCall;
     @FXML private Button btnInfo;
     @FXML private ScrollPane scrollMessages;
@@ -80,6 +85,8 @@ public class MainChatController {
     @FXML private Button btnAddMember;
     @FXML private Button btnToggleNotification;
     @FXML private Button btnMuteConversation;
+    @FXML private Button btnUnfriend;
+    @FXML private Button btnShowFiles;
     
     // ========== Search Messages ==========
     @FXML private Button btnSearchMessages;
@@ -106,6 +113,7 @@ public class MainChatController {
     private String currentRoomId; // Lưu room ID hiện tại để so sánh với incoming messages
     private final Set<Integer> shownCallDialogs = java.util.Collections.synchronizedSet(new HashSet<>()); // Track các call đã hiển thị dialog
     private final Set<Integer> activeCallDialogs = java.util.Collections.synchronizedSet(new HashSet<>()); // Track các dialog đang mở
+    private final Map<Long, User> userCache = new HashMap<>();
     
     // ========== Notification ==========
     private AudioClip notificationSound;
@@ -117,6 +125,27 @@ public class MainChatController {
     private static final int CHAT_PORT = org.example.demo2.config.ServerConfig.CHAT_PORT;
     private static final String MOD_HOST = org.example.demo2.config.ServerConfig.SERVER_HOST;
     private static final int MOD_PORT = org.example.demo2.config.ServerConfig.MODERATION_PORT;
+    private static final String[] AVATAR_COLORS = new String[]{
+            "#38bdf8", // blue
+            "#22c55e", // green
+            "#a855f7", // purple
+            "#f97316", // orange
+            "#ec4899", // pink
+            "#14b8a6", // teal
+            "#6366f1"  // indigo
+    };
+    private static final String ONLINE_COLOR = "#22c55e";
+    private static final String OFFLINE_COLOR = "#6b7280";
+    private static final String TYPING_COLOR = "#fbbf24";
+
+    // Typing presence (UDP multicast)
+    private static final String TYPING_GROUP = "239.1.1.1";
+    private static final int TYPING_PORT = 4447;
+    private MulticastSocket typingSocket;
+    private Thread typingThread;
+    private final AtomicBoolean typingRunning = new AtomicBoolean(false);
+    private long lastTypingSent = 0L;
+    private javafx.animation.Timeline typingTimeline;
     
     @FXML
     private void initialize() {
@@ -134,6 +163,7 @@ public class MainChatController {
         if (lblCurrentUser != null) {
             lblCurrentUser.setText(Session.getDisplayName());
         }
+        applyAvatar(currentUserAvatar, Session.getAvatarPath(), fallbackColorForUser(Session.getUserId()));
         
         // Setup search
         setupSearch();
@@ -146,12 +176,17 @@ public class MainChatController {
         
         // Setup chat input
         txtMessage.setOnAction(e -> sendMessage());
+        txtMessage.textProperty().addListener((obs, oldVal, newVal) -> sendTypingSignal());
         btnSend.setOnAction(e -> sendMessage());
         
         // Setup call buttons
-        btnCall.setOnAction(e -> handleCall());
         btnVideoCall.setOnAction(e -> handleVideoCall());
-        btnInfo.setOnAction(e -> toggleInfoPanel());
+        if (btnInfo != null) {
+            btnInfo.setOnAction(e -> toggleInfoPanel());
+        }
+        if (btnShowFiles != null) {
+            btnShowFiles.setOnAction(e -> handleShowFiles());
+        }
         
         // Setup add member button
         if (btnAddMember != null) {
@@ -172,6 +207,9 @@ public class MainChatController {
         
         // Start checking incoming calls định kỳ
         startIncomingCallChecker();
+
+        // Start typing presence (UDP multicast)
+        startTypingPresence();
     }
     
     /**
@@ -236,6 +274,212 @@ public class MainChatController {
         String status = Session.isNotificationEnabled() ? "bật" : "tắt";
         showInfo("Thông báo đã " + status);
     }
+
+    @FXML
+    private void handleEditProfile() {
+        if (clientService == null) {
+            showError("Chưa kết nối tới server");
+            return;
+        }
+        Dialog<Void> dialog = new Dialog<>();
+        dialog.setTitle("Cập nhật hồ sơ");
+        dialog.setHeaderText(null);
+        dialog.getDialogPane().getButtonTypes().addAll(ButtonType.OK, ButtonType.CANCEL);
+        dialog.getDialogPane().setPrefWidth(760);
+        dialog.getDialogPane().getStyleClass().add("profile-dialog");
+        try {
+            var css = getClass().getResource("/org/example/demo2/ui/css/theme.css");
+            if (css != null && !dialog.getDialogPane().getStylesheets().contains(css.toExternalForm())) {
+                dialog.getDialogPane().getStylesheets().add(css.toExternalForm());
+            }
+        } catch (Exception ignored) {}
+
+        // Header
+        HBox header = new HBox(10);
+        header.getStyleClass().add("profile-header");
+        VBox headerText = new VBox(4);
+        Label title = new Label("Cập nhật hồ sơ");
+        title.getStyleClass().add("profile-title");
+        Label subTitle = new Label("Tên hiển thị và avatar sẽ xuất hiện với bạn bè");
+        subTitle.getStyleClass().add("profile-subtitle");
+        headerText.getChildren().addAll(title, subTitle);
+        header.getChildren().addAll(headerText);
+
+        TextField displayNameField = new TextField(Session.getDisplayName());
+        displayNameField.setPromptText("Nhập tên hiển thị");
+        displayNameField.setMaxWidth(Double.MAX_VALUE);
+        GridPane.setHgrow(displayNameField, Priority.ALWAYS);
+        TextField avatarPathField = new TextField(Session.getAvatarPath() != null ? Session.getAvatarPath() : "");
+        avatarPathField.setPromptText("Đường dẫn file ảnh hoặc URL");
+        avatarPathField.setMaxWidth(Double.MAX_VALUE);
+        GridPane.setHgrow(avatarPathField, Priority.ALWAYS);
+        Button browseBtn = new Button("Chọn ảnh");
+        browseBtn.getStyleClass().add("profile-browse-btn");
+        browseBtn.setMinWidth(96);
+        HBox.setHgrow(avatarPathField, Priority.ALWAYS);
+        Circle preview = new Circle(28);
+        applyAvatar(preview, avatarPathField.getText(), fallbackColorForUser(Session.getUserId()));
+        avatarPathField.textProperty().addListener((obs, oldVal, newVal) ->
+                applyAvatar(preview, newVal, fallbackColorForUser(Session.getUserId())));
+        browseBtn.setOnAction(e -> {
+            FileChooser chooser = new FileChooser();
+            chooser.getExtensionFilters().addAll(
+                    new FileChooser.ExtensionFilter("Ảnh", "*.png", "*.jpg", "*.jpeg", "*.gif"),
+                    new FileChooser.ExtensionFilter("Tất cả", "*.*")
+            );
+            File file = chooser.showOpenDialog(btnEditProfile != null ? btnEditProfile.getScene().getWindow() : null);
+            if (file != null) {
+                avatarPathField.setText(file.getAbsolutePath());
+            }
+        });
+
+        PasswordField currentPasswordField = new PasswordField();
+        currentPasswordField.setPromptText("Bắt buộc nếu đổi mật khẩu");
+        currentPasswordField.setMaxWidth(Double.MAX_VALUE);
+        GridPane.setHgrow(currentPasswordField, Priority.ALWAYS);
+        PasswordField newPasswordField = new PasswordField();
+        newPasswordField.setPromptText("Mật khẩu mới");
+        newPasswordField.setMaxWidth(Double.MAX_VALUE);
+        GridPane.setHgrow(newPasswordField, Priority.ALWAYS);
+        PasswordField confirmPasswordField = new PasswordField();
+        confirmPasswordField.setPromptText("Nhập lại mật khẩu mới");
+        confirmPasswordField.setMaxWidth(Double.MAX_VALUE);
+        GridPane.setHgrow(confirmPasswordField, Priority.ALWAYS);
+
+        GridPane publicGrid = new GridPane();
+        publicGrid.setHgap(12);
+        publicGrid.setVgap(12);
+        publicGrid.setPadding(new Insets(8, 0, 0, 0));
+        ColumnConstraints col1 = new ColumnConstraints();
+        col1.setPercentWidth(30);
+        ColumnConstraints col2 = new ColumnConstraints();
+        col2.setPercentWidth(70);
+        publicGrid.getColumnConstraints().addAll(col1, col2);
+        Label lblDisplayName = new Label("Tên hiển thị");
+        lblDisplayName.getStyleClass().add("profile-label");
+        publicGrid.add(lblDisplayName, 0, 0);
+        publicGrid.add(displayNameField, 1, 0);
+        Label lblAvatar = new Label("Avatar");
+        lblAvatar.getStyleClass().add("profile-label");
+        publicGrid.add(lblAvatar, 0, 1);
+        HBox avatarRow = new HBox(10, avatarPathField, browseBtn, preview);
+        avatarRow.setAlignment(Pos.CENTER_LEFT);
+        publicGrid.add(avatarRow, 1, 1);
+        publicGrid.setMaxWidth(Double.MAX_VALUE);
+        TitledPane publicPane = new TitledPane("Thông tin công khai", publicGrid);
+        publicPane.getStyleClass().add("profile-section");
+        publicPane.setExpanded(true);
+        publicPane.setCollapsible(false);
+
+        GridPane securityGrid = new GridPane();
+        securityGrid.setHgap(12);
+        securityGrid.setVgap(12);
+        securityGrid.setPadding(new Insets(8, 0, 0, 0));
+        securityGrid.getColumnConstraints().addAll(col1, col2);
+        Label lblCurrentPw = new Label("Mật khẩu hiện tại");
+        lblCurrentPw.getStyleClass().add("profile-label");
+        securityGrid.add(lblCurrentPw, 0, 0);
+        securityGrid.add(currentPasswordField, 1, 0);
+        Label lblNewPw = new Label("Mật khẩu mới");
+        lblNewPw.getStyleClass().add("profile-label");
+        securityGrid.add(lblNewPw, 0, 1);
+        securityGrid.add(newPasswordField, 1, 1);
+        Label lblConfirmPw = new Label("Nhập lại mật khẩu mới");
+        lblConfirmPw.getStyleClass().add("profile-label");
+        securityGrid.add(lblConfirmPw, 0, 2);
+        securityGrid.add(confirmPasswordField, 1, 2);
+        securityGrid.setMaxWidth(Double.MAX_VALUE);
+        TitledPane securityPane = new TitledPane("Bảo mật (tuỳ chọn)", securityGrid);
+        securityPane.getStyleClass().add("profile-section");
+        securityPane.setExpanded(true);
+        securityPane.setCollapsible(false);
+
+        Label errorLabel = new Label();
+        errorLabel.getStyleClass().add("profile-error");
+
+        VBox content = new VBox(12, header, publicPane, securityPane, errorLabel);
+        content.setPadding(new Insets(6, 0, 0, 0));
+        dialog.getDialogPane().setContent(content);
+
+        Button okButton = (Button) dialog.getDialogPane().lookupButton(ButtonType.OK);
+        okButton.getStyleClass().add("profile-ok-btn");
+        Button cancelButton = (Button) dialog.getDialogPane().lookupButton(ButtonType.CANCEL);
+        if (cancelButton != null) {
+            cancelButton.getStyleClass().add("profile-cancel-btn");
+        }
+
+        BooleanBinding displayNameInvalid = displayNameField.textProperty().isEmpty();
+        BooleanBinding passwordChangeRequested = currentPasswordField.textProperty().isNotEmpty()
+                .or(newPasswordField.textProperty().isNotEmpty())
+                .or(confirmPasswordField.textProperty().isNotEmpty());
+        BooleanBinding passwordInvalid = passwordChangeRequested.and(
+                currentPasswordField.textProperty().isEmpty()
+                        .or(newPasswordField.textProperty().isEmpty())
+                        .or(confirmPasswordField.textProperty().isEmpty())
+                        .or(newPasswordField.textProperty().isNotEqualTo(confirmPasswordField.textProperty()))
+        );
+        okButton.disableProperty().bind(displayNameInvalid.or(passwordInvalid));
+
+        okButton.addEventFilter(javafx.event.ActionEvent.ACTION, event -> {
+            String newDisplayName = displayNameField.getText().trim();
+            String avatarPath = avatarPathField.getText().trim();
+            String currentPw = currentPasswordField.getText();
+            String newPw = newPasswordField.getText();
+            String confirmPw = confirmPasswordField.getText();
+
+            errorLabel.setText("");
+            if (newDisplayName.isEmpty()) {
+                errorLabel.setText("Tên hiển thị không được để trống");
+                event.consume();
+                return;
+            }
+
+            try {
+                boolean profileChanged = !newDisplayName.equals(Session.getDisplayName())
+                        || !Objects.equals(avatarPath, Session.getAvatarPath());
+                if (profileChanged) {
+                    User updated = clientService.updateProfile(Session.getUserId(), newDisplayName,
+                            avatarPath.isBlank() ? null : avatarPath);
+                    if (updated != null) {
+                        Session.setUser(updated.id(), updated.displayName(), updated.avatarPath());
+                        lblCurrentUser.setText(updated.displayName());
+                        applyAvatar(currentUserAvatar, updated.avatarPath(), fallbackColorForUser(updated.id()));
+                        userCache.put(updated.id(), updated);
+                        loadFriends();
+                    }
+                }
+
+                if (!newPw.isBlank() || !currentPw.isBlank() || !confirmPw.isBlank()) {
+                    if (currentPw.isBlank()) {
+                        errorLabel.setText("Vui lòng nhập mật khẩu hiện tại");
+                        event.consume();
+                        return;
+                    }
+                    if (newPw.isBlank() || confirmPw.isBlank()) {
+                        errorLabel.setText("Vui lòng nhập và xác nhận mật khẩu mới");
+                        event.consume();
+                        return;
+                    }
+                    if (!newPw.equals(confirmPw)) {
+                        errorLabel.setText("Mật khẩu mới không khớp");
+                        event.consume();
+                        return;
+                    }
+                    boolean changed = clientService.changePassword(Session.getUserId(), currentPw, newPw);
+                    if (!changed) {
+                        errorLabel.setText("Mật khẩu hiện tại không đúng");
+                        event.consume();
+                        return;
+                    }
+                }
+            } catch (RemoteException e) {
+                errorLabel.setText("Lỗi cập nhật hồ sơ: " + e.getMessage());
+                event.consume();
+            }
+        });
+
+        dialog.showAndWait();
+    }
     
     /**
      * Toggle mute for current conversation.
@@ -253,6 +497,172 @@ public class MainChatController {
         String status = Session.isConversationMuted(currentRoomId) ? "đã tắt" : "đã bật";
         showInfo("Thông báo " + status + " cho cuộc trò chuyện này");
     }
+
+    @FXML
+    private void handleUnfriend() {
+        if (currentChat == null || currentChat.user == null) {
+            showError("Chỉ huỷ kết bạn trong chat 1-1");
+            return;
+        }
+        Alert confirm = new Alert(Alert.AlertType.CONFIRMATION);
+        confirm.setTitle("Huỷ kết bạn");
+        confirm.setHeaderText("Bạn chắc chắn muốn huỷ kết bạn và xoá toàn bộ tin nhắn?");
+        confirm.setContentText("Thao tác này sẽ xoá lịch sử trò chuyện giữa hai người.");
+        confirm.showAndWait().ifPresent(btn -> {
+            if (btn == ButtonType.OK) {
+                try {
+                    Long me = Session.getUserId();
+                    Long other = currentChat.user.id();
+                    // Xoá tin nhắn cuộc trò chuyện hiện tại
+                    if (currentRoomId != null) {
+                        clientService.deleteConversationMessages(currentRoomId);
+                    }
+                    // Huỷ kết bạn 2 chiều
+                    clientService.removeFriend(me, other);
+
+                    // Cập nhật UI
+                    messagesContainer.getChildren().clear();
+                    lblChatName.setText("");
+                    applyStatus(lblChatStatus, "", ONLINE_COLOR);
+                    setStatusIndicator(false);
+                    currentChat = null;
+                    currentRoomId = null;
+                    loadFriends();
+                    loadPendingRequests();
+                    showInfo("Đã huỷ kết bạn và xoá tin nhắn");
+                } catch (RemoteException e) {
+                    showError("Lỗi huỷ kết bạn: " + e.getMessage());
+                }
+            }
+        });
+    }
+
+    @FXML
+    private void handleShowFiles() {
+        if (currentRoomId == null) {
+            showError("Chưa chọn cuộc trò chuyện");
+            return;
+        }
+        List<ChatMessage> files;
+        try {
+            files = clientService.getMessageHistory(currentRoomId, 500).stream()
+                    .filter(msg -> msg.type() == org.example.demo2.model.MessageType.FILE
+                            || msg.type() == org.example.demo2.model.MessageType.IMAGE)
+                    .collect(Collectors.toList());
+        } catch (RemoteException e) {
+            showError("Lỗi tải danh sách file: " + e.getMessage());
+            return;
+        }
+
+        if (files.isEmpty()) {
+            showInfo("Chưa có file nào trong cuộc trò chuyện này");
+            return;
+        }
+
+        Dialog<Void> dlg = new Dialog<>();
+        dlg.setTitle("");
+        dlg.getDialogPane().getButtonTypes().add(ButtonType.CLOSE);
+        dlg.getDialogPane().getStyleClass().add("file-dialog");
+        dlg.getDialogPane().setPrefWidth(600);
+        dlg.getDialogPane().setPrefHeight(500);
+
+        // Custom header
+        HBox headerBox = new HBox(12);
+        headerBox.setAlignment(Pos.CENTER_LEFT);
+        headerBox.setPadding(new Insets(20, 24, 16, 24));
+        Label headerIcon = new Label("📁");
+        headerIcon.getStyleClass().add("file-header-icon");
+        VBox headerText = new VBox(2);
+        Label headerTitle = new Label("File & phương tiện");
+        headerTitle.getStyleClass().add("file-header-title");
+        Label headerSubtitle = new Label(files.size() + " file trong cuộc trò chuyện");
+        headerSubtitle.getStyleClass().add("file-header-subtitle");
+        headerText.getChildren().addAll(headerTitle, headerSubtitle);
+        headerBox.getChildren().addAll(headerIcon, headerText);
+
+        // File list container
+        VBox fileListContainer = new VBox(8);
+        fileListContainer.setPadding(new Insets(0, 24, 24, 24));
+
+        for (ChatMessage msg : files) {
+            String payload = msg.payloadRef();
+            String[] parts = payload != null ? payload.split("\\|") : new String[0];
+            String filename = parts.length >= 2 ? parts[1] : "(không tên)";
+            String size = parts.length >= 3 ? formatFileSizeSafe(parts[2]) : "";
+            
+            // File item container
+            HBox fileItem = new HBox(16);
+            fileItem.setAlignment(Pos.CENTER_LEFT);
+            fileItem.setPadding(new Insets(14, 16, 14, 16));
+            fileItem.getStyleClass().add("file-item");
+            
+            // File icon
+            String icon = getFileIcon(filename);
+            Label iconLabel = new Label(icon);
+            iconLabel.setStyle("-fx-font-size: 32px;");
+            
+            // File info
+            VBox fileInfo = new VBox(4);
+            fileInfo.setAlignment(Pos.CENTER_LEFT);
+            Label nameLabel = new Label(filename);
+            nameLabel.setStyle("-fx-text-fill: #e2e8f0; -fx-font-size: 14px; -fx-font-weight: 600;");
+            nameLabel.setWrapText(true);
+            nameLabel.setMaxWidth(300);
+            Label sizeLabel = new Label(size);
+            sizeLabel.setStyle("-fx-text-fill: #94a3b8; -fx-font-size: 12px;");
+            fileInfo.getChildren().addAll(nameLabel, sizeLabel);
+            
+            // Spacer
+            Region spacer = new Region();
+            HBox.setHgrow(spacer, Priority.ALWAYS);
+            
+            // Download button
+            Button downloadBtn = new Button("⬇ Tải xuống");
+            downloadBtn.getStyleClass().add("file-download-btn");
+            downloadBtn.setOnAction(ev -> {
+                try {
+                    long fileId = Long.parseLong(parts[0]);
+                    downloadFile(fileId, filename);
+                } catch (Exception ex) {
+                    showError("Không thể tải: " + ex.getMessage());
+                }
+            });
+            
+            fileItem.getChildren().addAll(iconLabel, fileInfo, spacer, downloadBtn);
+            fileListContainer.getChildren().add(fileItem);
+        }
+
+        // ScrollPane for file list
+        ScrollPane scrollPane = new ScrollPane(fileListContainer);
+        scrollPane.setFitToWidth(true);
+        scrollPane.setStyle("-fx-background-color: transparent; -fx-background: transparent;");
+        scrollPane.setHbarPolicy(ScrollPane.ScrollBarPolicy.NEVER);
+        scrollPane.setVbarPolicy(ScrollPane.ScrollBarPolicy.AS_NEEDED);
+        
+        // Main content
+        VBox mainContent = new VBox();
+        mainContent.getChildren().addAll(headerBox, scrollPane);
+        mainContent.setStyle("-fx-background-color: #0f172a;");
+        
+        dlg.getDialogPane().setContent(mainContent);
+        
+        // Style close button
+        Button closeButton = (Button) dlg.getDialogPane().lookupButton(ButtonType.CLOSE);
+        if (closeButton != null) {
+            closeButton.getStyleClass().add("file-close-btn");
+        }
+        
+        dlg.showAndWait();
+    }
+
+    private String formatFileSizeSafe(String sizeStr) {
+        try {
+            long size = Long.parseLong(sizeStr);
+            return formatFileSize(size);
+        } catch (Exception e) {
+            return "";
+        }
+    }
     
     /**
      * Update notification button/label UI.
@@ -261,10 +671,16 @@ public class MainChatController {
         if (btnToggleNotification != null) {
             if (Session.isNotificationEnabled()) {
                 btnToggleNotification.setText("🔔");
-                btnToggleNotification.setStyle("-fx-background-color: rgba(34, 197, 94, 0.2); -fx-text-fill: #22c55e;");
+                btnToggleNotification.getStyleClass().removeAll("notification-disabled");
+                if (!btnToggleNotification.getStyleClass().contains("notification-enabled")) {
+                    btnToggleNotification.getStyleClass().add("notification-enabled");
+                }
             } else {
                 btnToggleNotification.setText("🔕");
-                btnToggleNotification.setStyle("-fx-background-color: rgba(239, 68, 68, 0.2); -fx-text-fill: #ef4444;");
+                btnToggleNotification.getStyleClass().removeAll("notification-enabled");
+                if (!btnToggleNotification.getStyleClass().contains("notification-disabled")) {
+                    btnToggleNotification.getStyleClass().add("notification-disabled");
+                }
             }
         }
     }
@@ -649,7 +1065,7 @@ public class MainChatController {
                     
                     // Avatar
                     Circle avatar = new Circle(20);
-                    avatar.setStyle("-fx-fill: #6366f1;");
+                    applyAvatar(avatar, user);
                     
                     // Name
                     VBox vbox = new VBox(2);
@@ -665,9 +1081,7 @@ public class MainChatController {
                     Region spacer = new Region();
                     HBox.setHgrow(spacer, Priority.ALWAYS);
                     Button addBtn = new Button("+ Kết bạn");
-                    addBtn.setStyle("-fx-background-color: #3b82f6; " +
-                            "-fx-text-fill: white; -fx-background-radius: 8px; -fx-padding: 8px 14px; " +
-                            "-fx-font-weight: 600; -fx-font-size: 12px; -fx-cursor: hand;");
+                    addBtn.getStyleClass().add("add-friend-button");
                     addBtn.setOnAction(e -> sendFriendRequest(user));
                     
                     hbox.getChildren().addAll(spacer, addBtn);
@@ -680,6 +1094,9 @@ public class MainChatController {
     private void searchUsers(String keyword) {
         try {
             List<User> results = clientService.searchUsers(keyword);
+            for (User u : results) {
+                userCache.put(u.id(), u);
+            }
             lstSearchResults.setItems(FXCollections.observableArrayList(results));
             searchResultsContainer.setVisible(true);
             searchResultsContainer.setManaged(true);
@@ -730,7 +1147,7 @@ public class MainChatController {
         // Hiển thị pending friend requests
         ObservableList<ContactItem> requests = FXCollections.observableArrayList();
         for (User user : pendingRequests) {
-            requests.add(new ContactItem(user, "Lời mời kết bạn", null));
+            requests.add(new ContactItem(user, "Lời mời kết bạn", null, false));
         }
         lstContacts.setItems(requests);
     }
@@ -772,14 +1189,21 @@ public class MainChatController {
                     // Avatar with online indicator
                     StackPane avatarStack = new StackPane();
                     Circle avatar = new Circle(24);
-                    avatar.setStyle("-fx-fill: #6366f1;");
+                    String fallback = item.user != null
+                            ? fallbackColorForUser(item.user.id())
+                            : fallbackColorForUser(item.conversation != null ? item.conversation.id() : null);
+                    applyAvatar(avatar, item.user != null ? item.user.avatarPath() : null, fallback);
                     avatarStack.getChildren().add(avatar);
                     
                     // Online indicator
                     Circle onlineIndicator = new Circle(7);
-                    onlineIndicator.setStyle("-fx-fill: #22c55e; -fx-stroke: #0f172a; -fx-stroke-width: 2;");
                     onlineIndicator.setTranslateX(17);
                     onlineIndicator.setTranslateY(17);
+                    boolean online = item.online != null && item.online;
+                    onlineIndicator.setFill(Color.web(online ? ONLINE_COLOR : OFFLINE_COLOR));
+                    onlineIndicator.setStroke(Color.web("#0f172a"));
+                    onlineIndicator.setStrokeWidth(2);
+                    onlineIndicator.setVisible(item.user != null);
                     avatarStack.getChildren().add(onlineIndicator);
                     
                     // Info
@@ -845,6 +1269,8 @@ public class MainChatController {
             List<User> friends = clientService.getFriends(userId);
             friendsList.clear();
             for (User friend : friends) {
+                userCache.put(friend.id(), friend);
+                boolean online = isUserOnline(friend.id());
                 // Lấy conversation và tin nhắn cuối cùng
                 Conversation conv = null;
                 ChatMessage lastMsg = null;
@@ -858,7 +1284,7 @@ public class MainChatController {
                 }
                 
                 String lastMsgText = lastMsg != null ? lastMsg.text() : null;
-                friendsList.add(new ContactItem(friend, lastMsgText, conv));
+                friendsList.add(new ContactItem(friend, lastMsgText, conv, online));
             }
         } catch (RemoteException e) {
             showError("Lỗi tải danh sách bạn bè: " + e.getMessage());
@@ -869,6 +1295,9 @@ public class MainChatController {
         try {
             Long userId = Session.getUserId();
             List<User> requests = clientService.getPendingFriendRequests(userId);
+            for (User u : requests) {
+                userCache.put(u.id(), u);
+            }
             pendingRequests.setAll(requests);
         } catch (RemoteException e) {
             showError("Lỗi tải lời mời: " + e.getMessage());
@@ -890,7 +1319,7 @@ public class MainChatController {
                         // Ignore errors
                     }
                     String lastMsgText = lastMsg != null ? lastMsg.text() : null;
-                    groupsList.add(new ContactItem(null, conv.title(), lastMsgText, conv));
+                    groupsList.add(new ContactItem(null, conv.title(), lastMsgText, conv, null));
                 }
             }
         } catch (RemoteException e) {
@@ -925,13 +1354,11 @@ public class MainChatController {
         if (item.user != null) {
             // Chat với bạn bè
             lblChatName.setText(item.user.displayName());
-            lblChatStatus.setText("Đang hoạt động");
-            
-            // Update status indicator
-            if (statusIndicator != null) {
-                statusIndicator.getStyleClass().removeAll("online-indicator", "offline-indicator");
-                statusIndicator.getStyleClass().add("online-indicator");
-            }
+            boolean online = isUserOnline(item.user.id());
+            applyStatus(lblChatStatus, online ? "Đang hoạt động" : "Không hoạt động",
+                    online ? ONLINE_COLOR : OFFLINE_COLOR);
+            applyAvatar(avatarCircle, item.user.avatarPath(), fallbackColorForUser(item.user.id()));
+            setStatusIndicator(online);
             
             // Lấy hoặc tạo direct conversation
             try {
@@ -951,6 +1378,7 @@ public class MainChatController {
             // Chat nhóm
             lblChatName.setText(item.conversation.title() != null ? item.conversation.title() : "Nhóm");
             lblChatStatus.setText("Nhóm");
+            applyAvatar(avatarCircle, null, fallbackColorForUser(item.conversation.id()));
             currentRoomId = item.conversation.id().toString();
             System.out.println("[MainChatController] Opened group chat, conversation ID: " + currentRoomId);
             
@@ -1164,8 +1592,7 @@ public class MainChatController {
             systemBox.setPadding(new Insets(12, 16, 12, 16));
             
             Label systemLabel = new Label(msg.text());
-            systemLabel.setStyle("-fx-text-fill: #94a3b8; -fx-font-size: 13px; -fx-font-style: italic; " +
-                    "-fx-background-color: rgba(71, 85, 105, 0.2); -fx-background-radius: 16px; -fx-padding: 8px 16px;");
+            systemLabel.getStyleClass().add("system-message");
             systemBox.getChildren().add(systemLabel);
             
             messagesContainer.getChildren().add(systemBox);
@@ -1211,9 +1638,19 @@ public class MainChatController {
         // Avatar
         Circle avatar = new Circle(18);
         if (isOwnMessage) {
-            avatar.setStyle("-fx-fill: #6366f1;");
+            applyAvatar(avatar, Session.getAvatarPath(), fallbackColorForUser(Session.getUserId()));
         } else {
-            avatar.setStyle("-fx-fill: #22c55e;");
+            User sender = null;
+            try {
+                sender = getCachedUser(Long.parseLong(msg.from()));
+            } catch (NumberFormatException ignored) {
+            }
+            if (sender == null && currentChat != null && currentChat.user != null
+                    && msg.from().equals(String.valueOf(currentChat.user.id()))) {
+                sender = currentChat.user;
+            }
+            applyAvatar(avatar, sender != null ? sender.avatarPath() : null,
+                    fallbackColorForUser(sender != null ? sender.id() : null));
         }
         
         // Message content
@@ -1244,16 +1681,14 @@ public class MainChatController {
         bubble.setMaxWidth(380);
         if (isOwnMessage) {
             // Tin nhắn của mình - màu xanh tím đậm
-            bubble.setStyle("-fx-background-color: #3b82f6; " +
-                    "-fx-background-radius: 18 18 4 18; -fx-padding: 12 16;");
+            bubble.getStyleClass().add("message-bubble-own");
         } else {
             // Tin nhắn của người khác - màu slate đậm
-            bubble.setStyle("-fx-background-color: #374151; " +
-                    "-fx-background-radius: 18 18 18 4; -fx-padding: 12 16;");
+            bubble.getStyleClass().add("message-bubble-other");
         }
         
         Label textLabel = new Label(msg.text());
-        textLabel.setStyle("-fx-text-fill: " + (isOwnMessage ? "#ffffff" : "#e2e8f0") + "; -fx-font-size: 14px;");
+        textLabel.getStyleClass().add(isOwnMessage ? "message-text-own" : "message-text-other");
         textLabel.setWrapText(true);
         bubble.getChildren().add(textLabel);
         
@@ -1324,6 +1759,15 @@ public class MainChatController {
         confirmAlert.showAndWait().ifPresent(response -> {
             if (response == ButtonType.OK) {
                 try {
+                    // Thông báo server hủy session để trạng thái online cập nhật ngay
+                    if (clientService != null) {
+                        try {
+                            clientService.logout(Session.getUserId());
+                        } catch (Exception e) {
+                            System.err.println("[MainChatController] logout notify failed: " + e.getMessage());
+                        }
+                    }
+
                     // Đóng kết nối chat
                     if (chatClient != null) {
                         chatClient.close();
@@ -1331,6 +1775,7 @@ public class MainChatController {
                     
                     // Xóa session
                     Session.clear();
+                    userCache.clear();
                     
                     // Quay về màn hình login
                     javafx.stage.Stage currentStage = (javafx.stage.Stage) lblCurrentUser.getScene().getWindow();
@@ -1384,9 +1829,6 @@ public class MainChatController {
             
             VideoCallController controller = loader.getController();
             controller.setClientService(clientService);
-            controller.setOnCloseCallback(() -> {
-                // Window sẽ tự đóng
-            });
             
             javafx.stage.Stage callStage = new javafx.stage.Stage();
             callStage.setTitle("Video Call - " + otherUserName);
@@ -1395,6 +1837,9 @@ public class MainChatController {
                 // Kết thúc cuộc gọi khi đóng window
                 controller.handleLeaveCall();
             });
+            
+            // Set stage vào controller để có thể đóng cửa sổ
+            controller.setCallStage(callStage);
             
             if (isCaller) {
                 controller.startCall(otherUserId, otherUserName);
@@ -1544,6 +1989,7 @@ public class MainChatController {
             if (lblInfoStatus != null) {
                 lblInfoStatus.setText("Nhóm chat");
             }
+            applyAvatar(infoAvatar, null, fallbackColorForUser(currentChat.conversation.id()));
             if (btnAddMember != null) {
                 btnAddMember.setVisible(true);
                 btnAddMember.setManaged(true);
@@ -1553,9 +1999,11 @@ public class MainChatController {
             if (lblInfoName != null) {
                 lblInfoName.setText(currentChat.user.displayName());
             }
-            if (lblInfoStatus != null) {
-                lblInfoStatus.setText("Đang hoạt động");
-            }
+            boolean online = isUserOnline(currentChat.user.id());
+            applyStatus(lblInfoStatus, online ? "Đang hoạt động" : "Không hoạt động",
+                    online ? ONLINE_COLOR : OFFLINE_COLOR);
+            applyAvatar(infoAvatar, currentChat.user.avatarPath(), fallbackColorForUser(currentChat.user.id()));
+            setStatusIndicator(online);
             if (btnAddMember != null) {
                 btnAddMember.setVisible(false);
                 btnAddMember.setManaged(false);
@@ -1718,34 +2166,31 @@ public class MainChatController {
             
             // Style dialog pane
             DialogPane dialogPane = dialog.getDialogPane();
-            dialogPane.setStyle("-fx-background-color: #1e1e3f;");
+            dialogPane.getStyleClass().add("group-dialog");
             
             // Form container
             VBox form = new VBox(16);
             form.setPadding(new Insets(24));
             form.setPrefWidth(420);
-            form.setStyle("-fx-background-color: #1e1e3f;");
+            form.getStyleClass().add("group-form");
             
             // Header
             Label headerLabel = new Label("👥 Tạo nhóm chat mới");
-            headerLabel.setStyle("-fx-font-size: 20px; -fx-font-weight: bold; -fx-text-fill: #ffffff;");
+            headerLabel.getStyleClass().add("group-header-title");
             
             Label subHeaderLabel = new Label("Đặt tên và chọn thành viên cho nhóm");
-            subHeaderLabel.setStyle("-fx-font-size: 13px; -fx-text-fill: #a0aec0;");
+            subHeaderLabel.getStyleClass().add("group-header-subtitle");
             
             VBox headerBox = new VBox(4);
             headerBox.getChildren().addAll(headerLabel, subHeaderLabel);
             
             // Tên nhóm
             Label lblGroupName = new Label("Tên nhóm");
-            lblGroupName.setStyle("-fx-font-size: 13px; -fx-font-weight: 600; -fx-text-fill: #ffffff;");
+            lblGroupName.getStyleClass().add("group-label");
             
             TextField txtGroupName = new TextField();
             txtGroupName.setPromptText("Nhập tên nhóm...");
-            txtGroupName.setStyle("-fx-background-color: #16213e; -fx-text-fill: #ffffff; " +
-                    "-fx-prompt-text-fill: #718096; -fx-background-radius: 10; " +
-                    "-fx-border-color: #4a5568; -fx-border-width: 1; -fx-border-radius: 10; " +
-                    "-fx-padding: 12 16; -fx-font-size: 14px;");
+            txtGroupName.getStyleClass().add("group-text-field");
             txtGroupName.setPrefHeight(44);
             
             VBox groupNameBox = new VBox(8);
@@ -1753,14 +2198,13 @@ public class MainChatController {
             
             // Danh sách bạn bè để chọn
             Label lblMembers = new Label("Chọn thành viên");
-            lblMembers.setStyle("-fx-font-size: 13px; -fx-font-weight: 600; -fx-text-fill: #ffffff;");
+            lblMembers.getStyleClass().add("group-label");
             
             ListView<User> lstMembers = new ListView<>();
             lstMembers.setItems(FXCollections.observableArrayList(friends));
             lstMembers.getSelectionModel().setSelectionMode(SelectionMode.MULTIPLE);
             lstMembers.setPrefHeight(220);
-            lstMembers.setStyle("-fx-background-color: #16213e; -fx-background-radius: 10; " +
-                    "-fx-border-color: #4a5568; -fx-border-width: 1; -fx-border-radius: 10;");
+            lstMembers.getStyleClass().add("group-list-view");
             
             // Cell factory để hiển thị tên đẹp hơn
             lstMembers.setCellFactory(listView -> new ListCell<User>() {
@@ -1770,7 +2214,7 @@ public class MainChatController {
                     if (empty || user == null) {
                         setText(null);
                         setGraphic(null);
-                        setStyle("-fx-background-color: transparent;");
+                        getStyleClass().setAll("group-list-cell");
                     } else {
                         HBox hbox = new HBox(12);
                         hbox.setAlignment(Pos.CENTER_LEFT);
@@ -1778,15 +2222,15 @@ public class MainChatController {
                         
                         // Avatar
                         Circle avatar = new Circle(16);
-                        avatar.setStyle("-fx-fill: #6366f1;");
+                    applyAvatar(avatar, user);
                         
                         // Name
                         Label nameLabel = new Label(user.displayName());
-                        nameLabel.setStyle("-fx-text-fill: #ffffff; -fx-font-size: 14px;");
+                        nameLabel.getStyleClass().add("group-member-name");
                         
                         // Check icon when selected
                         Label checkIcon = new Label(isSelected() ? "✓" : "");
-                        checkIcon.setStyle("-fx-text-fill: #10b981; -fx-font-size: 16px; -fx-font-weight: bold;");
+                        checkIcon.getStyleClass().add("group-check-icon");
                         
                         Region spacer = new Region();
                         HBox.setHgrow(spacer, Priority.ALWAYS);
@@ -1796,10 +2240,9 @@ public class MainChatController {
                         setText(null);
                         
                         // Style based on selection
+                        getStyleClass().setAll("group-list-cell");
                         if (isSelected()) {
-                            setStyle("-fx-background-color: rgba(99, 102, 241, 0.2); -fx-background-radius: 8;");
-                        } else {
-                            setStyle("-fx-background-color: transparent;");
+                            getStyleClass().add("selected");
                         }
                     }
                 }
@@ -1810,7 +2253,7 @@ public class MainChatController {
             
             // Hint
             Label hintLabel = new Label("💡 Giữ Ctrl để chọn nhiều người");
-            hintLabel.setStyle("-fx-font-size: 12px; -fx-text-fill: #718096;");
+            hintLabel.getStyleClass().add("group-hint");
             
             form.getChildren().addAll(headerBox, groupNameBox, membersBox, hintLabel);
             
@@ -1823,13 +2266,11 @@ public class MainChatController {
             
             // Style buttons
             Button createBtn = (Button) dialogPane.lookupButton(createButton);
-            createBtn.setStyle("-fx-background-color: #6366f1; -fx-text-fill: #ffffff; " +
-                    "-fx-font-weight: bold; -fx-background-radius: 10; -fx-padding: 10 24; -fx-cursor: hand;");
+            createBtn.getStyleClass().add("group-create-button");
             createBtn.setDisable(true);
             
             Button cancelBtn = (Button) dialogPane.lookupButton(cancelButton);
-            cancelBtn.setStyle("-fx-background-color: #374151; -fx-text-fill: #ffffff; " +
-                    "-fx-background-radius: 10; -fx-padding: 10 24; -fx-cursor: hand;");
+            cancelBtn.getStyleClass().add("group-cancel-button");
             
             // Validation
             txtGroupName.textProperty().addListener((obs, oldVal, newVal) -> {
@@ -2084,7 +2525,17 @@ public class MainChatController {
         
         // Avatar
         Circle avatar = new Circle(18);
-        avatar.setStyle(isOwnMessage ? "-fx-fill: #6366f1;" : "-fx-fill: #22c55e;");
+        if (isOwnMessage) {
+            applyAvatar(avatar, Session.getAvatarPath(), fallbackColorForUser(Session.getUserId()));
+        } else {
+            User sender = null;
+            try {
+                sender = getCachedUser(Long.parseLong(msg.from()));
+            } catch (NumberFormatException ignored) {
+            }
+            applyAvatar(avatar, sender != null ? sender.avatarPath() : null,
+                    fallbackColorForUser(sender != null ? sender.id() : null));
+        }
         
         // Content box
         VBox contentBox = new VBox(4);
@@ -2284,6 +2735,182 @@ public class MainChatController {
         if (size < 1024 * 1024 * 1024) return String.format("%.1f MB", size / (1024.0 * 1024));
         return String.format("%.1f GB", size / (1024.0 * 1024 * 1024));
     }
+
+    private void applyAvatar(Circle circle, User user) {
+        if (user == null) {
+            applyAvatar(circle, null, "#6366f1");
+        } else {
+            applyAvatar(circle, user.avatarPath(), fallbackColorForUser(user.id()));
+        }
+    }
+
+    private void applyAvatar(Circle circle, String avatarPath, String fallbackColor) {
+        if (circle == null) {
+            return;
+        }
+        // Clear inline style so setFill wins over old -fx-fill
+        circle.setStyle("");
+        if (avatarPath != null && !avatarPath.isBlank()) {
+            try {
+                String source = avatarPath.startsWith("http") ? avatarPath : new File(avatarPath).toURI().toString();
+                Image img = new Image(source, circle.getRadius() * 2, circle.getRadius() * 2, true, true);
+                if (!img.isError()) {
+                    circle.setFill(new ImagePattern(img));
+                    return;
+                }
+            } catch (Exception e) {
+                System.err.println("[MainChatController] Could not load avatar: " + e.getMessage());
+            }
+        }
+        circle.setFill(Color.web(fallbackColor));
+    }
+
+    private String fallbackColorForUser(Long userId) {
+        if (userId == null || userId <= 0) {
+            return "#6366f1";
+        }
+        int idx = (int) ((userId - 1) % AVATAR_COLORS.length);
+        return AVATAR_COLORS[idx];
+    }
+
+    private boolean isUserOnline(Long userId) {
+        try {
+            return clientService != null && clientService.isOnline(userId);
+        } catch (Exception e) {
+            return false;
+        }
+    }
+
+    private void setStatusIndicator(boolean online) {
+        if (statusIndicator == null) return;
+        statusIndicator.setVisible(true);
+        statusIndicator.setFill(Color.web(online ? ONLINE_COLOR : OFFLINE_COLOR));
+        statusIndicator.setStroke(Color.web("#0f172a"));
+        statusIndicator.setStrokeWidth(1.5);
+    }
+
+    // ---------------- Typing presence (UDP multicast) ----------------
+    private void startTypingPresence() {
+        try {
+            typingSocket = new MulticastSocket(TYPING_PORT);
+            typingSocket.setReuseAddress(true);
+            InetAddress group = InetAddress.getByName(TYPING_GROUP);
+            typingSocket.joinGroup(group);
+            typingRunning.set(true);
+            typingThread = new Thread(() -> listenTyping(group));
+            typingThread.setDaemon(true);
+            typingThread.start();
+        } catch (Exception e) {
+            System.err.println("[MainChatController] Typing presence init failed: " + e.getMessage());
+            typingSocket = null;
+        }
+    }
+
+    private void listenTyping(InetAddress group) {
+        byte[] buf = new byte[512];
+        while (typingRunning.get()) {
+            try {
+                DatagramPacket packet = new DatagramPacket(buf, buf.length);
+                typingSocket.receive(packet);
+                String payload = new String(packet.getData(), 0, packet.getLength(), StandardCharsets.UTF_8);
+                handleTypingMessage(payload);
+            } catch (IOException e) {
+                if (typingRunning.get()) {
+                    System.err.println("[MainChatController] Typing listen error: " + e.getMessage());
+                }
+            }
+        }
+    }
+
+    private void handleTypingMessage(String payload) {
+        String[] parts = payload.split("\\|", 4);
+        if (parts.length < 4) return;
+        String type = parts[0];
+        String room = parts[1];
+        String userIdStr = parts[2];
+        String displayName = parts[3];
+        if (!"TYPING".equals(type)) return;
+        if (currentRoomId == null || !currentRoomId.equals(room)) return;
+        try {
+            if (Long.parseLong(userIdStr) == Session.getUserId()) {
+                return; // ignore self
+            }
+        } catch (NumberFormatException ignored) {}
+        showTypingIndicator(displayName);
+    }
+
+    private void sendTypingSignal() {
+        if (typingSocket == null || currentRoomId == null) return;
+        long now = System.currentTimeMillis();
+        if (now - lastTypingSent < 1200) {
+            return; // throttle
+        }
+        lastTypingSent = now;
+        try {
+            String payload = "TYPING|" + currentRoomId + "|" + Session.getUserId() + "|" + Session.getDisplayName();
+            byte[] data = payload.getBytes(StandardCharsets.UTF_8);
+            DatagramPacket packet = new DatagramPacket(data, data.length, InetAddress.getByName(TYPING_GROUP), TYPING_PORT);
+            typingSocket.send(packet);
+        } catch (Exception e) {
+            System.err.println("[MainChatController] sendTypingSignal error: " + e.getMessage());
+        }
+    }
+
+    private void showTypingIndicator(String name) {
+        Platform.runLater(() -> {
+            applyStatus(lblChatStatus, name + " đang nhập...", TYPING_COLOR);
+            if (typingTimeline != null) {
+                typingTimeline.stop();
+            }
+            typingTimeline = new javafx.animation.Timeline(
+                    new javafx.animation.KeyFrame(Duration.seconds(2.5), ev -> updateCurrentStatusLabel())
+            );
+            typingTimeline.setCycleCount(1);
+            typingTimeline.play();
+        });
+    }
+
+    private void updateCurrentStatusLabel() {
+        if (currentChat == null) {
+            return;
+        }
+        if (currentChat.user != null) {
+            boolean online = isUserOnline(currentChat.user.id());
+            applyStatus(lblChatStatus, online ? "Đang hoạt động" : "Không hoạt động",
+                    online ? ONLINE_COLOR : OFFLINE_COLOR);
+        } else if (currentChat.conversation != null && "GROUP".equals(currentChat.conversation.type())) {
+            applyStatus(lblChatStatus, "Nhóm", ONLINE_COLOR);
+        }
+    }
+
+    private User getCachedUser(Long userId) {
+        if (userId == null) {
+            return null;
+        }
+        User cached = userCache.get(userId);
+        if (cached != null) {
+            return cached;
+        }
+        if (clientService == null) {
+            return null;
+        }
+        try {
+            User remote = clientService.findUserById(userId);
+            if (remote != null) {
+                userCache.put(userId, remote);
+            }
+            return remote;
+        } catch (Exception e) {
+            System.err.println("[MainChatController] Could not fetch user " + userId + ": " + e.getMessage());
+            return null;
+        }
+    }
+    
+    private void applyStatus(Label label, String text, String colorHex) {
+        if (label == null) return;
+        label.setText(text);
+        label.setTextFill(Color.web(colorHex));
+    }
     
     /**
      * Model cho contact item (friend hoặc group).
@@ -2293,21 +2920,24 @@ public class MainChatController {
         final String name;
         final String lastMessage;
         final Conversation conversation;
+        final Boolean online;
         
         // Constructor cho friend (có user)
-        ContactItem(User user, String lastMessage, Conversation conversation) {
+        ContactItem(User user, String lastMessage, Conversation conversation, Boolean online) {
             this.user = user;
             this.name = user != null ? user.displayName() : null;
             this.lastMessage = lastMessage;
             this.conversation = conversation;
+            this.online = online;
         }
         
         // Constructor cho group (có conversation) hoặc friend với conversation
-        ContactItem(User user, String name, String lastMessage, Conversation conversation) {
+        ContactItem(User user, String name, String lastMessage, Conversation conversation, Boolean online) {
             this.user = user;
             this.name = name;
             this.lastMessage = lastMessage;
             this.conversation = conversation;
+            this.online = online;
         }
     }
 }

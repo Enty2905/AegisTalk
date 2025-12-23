@@ -98,6 +98,15 @@ public class ChatServiceImpl extends UnicastRemoteObject implements ChatService 
             throw new RemoteException("Database error: " + e.getMessage(), e);
         }
     }
+
+    @Override
+    public boolean deleteConversationMessages(String conversationId) throws RemoteException {
+        try {
+            return messageDao.deleteByConversationId(conversationId);
+        } catch (SQLException e) {
+            throw new RemoteException("Database error: " + e.getMessage(), e);
+        }
+    }
 }
 
 

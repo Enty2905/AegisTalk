@@ -23,6 +23,7 @@ CREATE TABLE users (
     username     VARCHAR(50)     NOT NULL,
     password_hash VARCHAR(255)   NOT NULL,
     display_name VARCHAR(100)    NULL,
+    avatar_path  VARCHAR(500)    NULL,
     email        VARCHAR(100)    NULL,
     status       ENUM('ACTIVE', 'BLOCKED') NOT NULL DEFAULT 'ACTIVE',
     created_at   DATETIME        NOT NULL DEFAULT CURRENT_TIMESTAMP,

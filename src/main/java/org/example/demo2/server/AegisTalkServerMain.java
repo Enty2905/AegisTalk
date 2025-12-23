@@ -108,9 +108,7 @@ public class AegisTalkServerMain {
         httpThread.start();
         
         System.out.println();
-        System.out.println("========================================");
         System.out.println("   All services started successfully!");
-        System.out.println("========================================");
         
         // Lấy địa chỉ IP LAN của server
         String serverIp = org.example.demo2.net.udp.VideoStreamClient.getLocalLanAddress();
@@ -122,19 +120,6 @@ public class AegisTalkServerMain {
         System.out.println("TCP Chat Server:       " + serverIp + ":5555");
         System.out.println("UDP Video Server:      " + serverIp + ":8888");
         System.out.println("HTTP File Server:      http://" + serverIp + ":8081");
-        System.out.println();
-        System.out.println("===== HƯỚNG DẪN CHẠY TRÊN 2 MÁY KHÁC NHAU =====");
-        System.out.println("1. Trên máy Client, chạy ứng dụng với tham số:");
-        System.out.println("   mvn javafx:run -Dserver.host=" + serverIp);
-        System.out.println();
-        System.out.println("   Hoặc set biến môi trường trước khi chạy:");
-        System.out.println("   set SERVER_HOST=" + serverIp + "  (Windows)");
-        System.out.println("   export SERVER_HOST=" + serverIp + " (Linux/Mac)");
-        System.out.println("================================================");
-        System.out.println();
-        System.out.println("Press Ctrl+C to stop all services...");
-        System.out.println();
-        
         // Giữ main thread sống
         try {
             Thread.currentThread().join();

@@ -6,12 +6,14 @@ import java.util.Set;
 public class Session {
     private static long userId;
     private static String displayName;
+    private static String avatarPath;
     private static boolean notificationEnabled = true;
     private static Set<String> mutedConversations = new HashSet<>(); // Conversation IDs bị tắt thông báo
 
-    public static void setUser(long id, String name) {
+    public static void setUser(long id, String name, String avatar) {
         userId = id;
         displayName = name;
+        avatarPath = avatar;
     }
 
     public static long getUserId() {
@@ -21,10 +23,15 @@ public class Session {
     public static String getDisplayName() {
         return displayName;
     }
+
+    public static String getAvatarPath() {
+        return avatarPath;
+    }
     
     public static void clear() {
         userId = 0;
         displayName = null;
+        avatarPath = null;
         notificationEnabled = true;
         mutedConversations.clear();
     }

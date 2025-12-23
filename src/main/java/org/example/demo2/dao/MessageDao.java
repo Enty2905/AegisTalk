@@ -202,4 +202,16 @@ public class MessageDao {
             return null;
         }
     }
+
+    /**
+     * Xoá toàn bộ tin nhắn trong conversation.
+     */
+    public boolean deleteByConversationId(String conversationId) throws SQLException {
+        try (Connection conn = org.example.demo2.ui.DBTest.getConnection();
+             PreparedStatement st = conn.prepareStatement(
+                     "DELETE FROM messages WHERE conversation_id=?")) {
+            st.setLong(1, Long.parseLong(conversationId));
+            return st.executeUpdate() >= 0;
+        }
+    }
 }

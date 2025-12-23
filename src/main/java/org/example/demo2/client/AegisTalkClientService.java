@@ -66,6 +66,22 @@ public class AegisTalkClientService {
     public boolean isValidSession(Long userId) throws RemoteException {
         return authService.isValidSession(userId);
     }
+
+    public User updateProfile(Long userId, String displayName, String avatarPath) throws RemoteException {
+        return authService.updateProfile(userId, displayName, avatarPath);
+    }
+
+    public boolean changePassword(Long userId, String oldPassword, String newPassword) throws RemoteException {
+        return authService.changePassword(userId, oldPassword, newPassword);
+    }
+
+    public User findUserById(Long userId) throws RemoteException {
+        return authService.findById(userId);
+    }
+
+    public boolean isOnline(Long userId) throws RemoteException {
+        return authService.isOnline(userId);
+    }
     
     // ========== Friend Service ==========
     
@@ -92,6 +108,10 @@ public class AegisTalkClientService {
     public boolean areFriends(Long userId1, Long userId2) throws RemoteException {
         return friendService.areFriends(userId1, userId2);
     }
+
+    public boolean removeFriend(Long userId, Long friendId) throws RemoteException {
+        return friendService.removeFriend(userId, friendId);
+    }
     
     // ========== Chat Service ==========
     
@@ -117,6 +137,10 @@ public class AegisTalkClientService {
     
     public String getUserDisplayName(Long userId) throws RemoteException {
         return chatService.getUserDisplayName(userId);
+    }
+
+    public boolean deleteConversationMessages(String conversationId) throws RemoteException {
+        return chatService.deleteConversationMessages(conversationId);
     }
 
     // ========== Group Service ==========
