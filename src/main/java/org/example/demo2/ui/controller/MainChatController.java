@@ -2752,16 +2752,56 @@ public class MainChatController {
         circle.setStyle("");
         if (avatarPath != null && !avatarPath.isBlank()) {
             try {
-                String source = avatarPath.startsWith("http") ? avatarPath : new File(avatarPath).toURI().toString();
-                Image img = new Image(source, circle.getRadius() * 2, circle.getRadius() * 2, true, true);
-                if (!img.isError()) {
+                String source;
+                if (avatarPath.startsWith("http://") || avatarPath.startsWith("https://")) {
+                    // URL - dùng trực tiếp
+                    source = avatarPath;
+                } else {
+                    // File path - kiểm tra file tồn tại trước
+                    File file = new File(avatarPath);
+                    if (file.exists() && file.isFile()) {
+                        source = file.toURI().toString();
+                    } else {
+                        // File không tồn tại (có thể là absolute path từ máy khác)
+                        // Fallback về màu ngay lập tức
+                        circle.setFill(Color.web(fallbackColor));
+                        return;
+                    }
+                }
+                
+                // Load image với background loading
+                Image img = new Image(source, circle.getRadius() * 2, circle.getRadius() * 2, true, true, true);
+                
+                // Kiểm tra error ngay sau khi tạo Image
+                if (img.isError()) {
+                    System.err.println("[MainChatController] Avatar image has error, using fallback. Path: " + avatarPath);
+                    circle.setFill(Color.web(fallbackColor));
+                    return;
+                }
+                
+                // Nếu image đang load, đợi load xong
+                if (img.getProgress() < 1.0) {
+                    img.progressProperty().addListener((obs, oldVal, newVal) -> {
+                        if (newVal.doubleValue() >= 1.0) {
+                            Platform.runLater(() -> {
+                                if (img.isError()) {
+                                    circle.setFill(Color.web(fallbackColor));
+                                } else {
+                                    circle.setFill(new ImagePattern(img));
+                                }
+                            });
+                        }
+                    });
+                } else {
+                    // Image đã load xong
                     circle.setFill(new ImagePattern(img));
                     return;
                 }
             } catch (Exception e) {
-                System.err.println("[MainChatController] Could not load avatar: " + e.getMessage());
+                System.err.println("[MainChatController] Could not load avatar: " + e.getMessage() + ", path: " + avatarPath);
             }
         }
+        // Fallback to color nếu không có avatarPath hoặc có lỗi
         circle.setFill(Color.web(fallbackColor));
     }
 
