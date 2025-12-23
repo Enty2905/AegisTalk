@@ -35,10 +35,10 @@
 .icon-button {
     -fx-background-color: rgba(59, 130, 246, 0.15);
     -fx-text-fill: #60a5fa;
-    -fx-font-size: 13px;
+    -fx-font-size: 16px;
     -fx-font-weight: 600;
     -fx-background-radius: 10px;
-    -fx-padding: 8px 14px;
+    -fx-padding: 10px;
     -fx-cursor: hand;
 }
 
@@ -111,11 +111,13 @@
     -fx-text-fill: #94a3b8;
     -fx-font-size: 14px;
     -fx-font-weight: 600;
-    -fx-padding: 14px 16px;
+    -fx-padding: 12px 16px;
     -fx-background-radius: 0;
     -fx-border-color: transparent;
     -fx-border-width: 0 0 3px 0;
     -fx-cursor: hand;
+    -fx-min-width: 100px;
+    -fx-pref-width: 120px;
 }
 
 .tab-button:selected {
@@ -147,6 +149,18 @@
 
 .contacts-list .list-cell:hover {
     -fx-background-color: rgba(59, 130, 246, 0.1);
+}
+
+/* =========================
+   USER PROFILE SECTION
+   ========================= */
+.user-profile-section {
+    -fx-background-color: rgba(30, 41, 59, 0.5);
+    -fx-border-color: rgba(71, 85, 105, 0.3);
+    -fx-border-width: 1px 0 0 0;
+    -fx-min-height: 70px;
+    -fx-pref-height: 70px;
+}
     -fx-background-radius: 12px;
 }
 

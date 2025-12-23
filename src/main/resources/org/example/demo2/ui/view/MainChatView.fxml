@@ -11,9 +11,9 @@
     <left>
         <VBox minWidth="260" maxWidth="400" prefWidth="320" styleClass="sidebar-left">
             <!-- Header: Title + New Message -->
-            <HBox alignment="CENTER_LEFT" spacing="12" styleClass="sidebar-header">
+            <HBox alignment="CENTER_LEFT" spacing="12" minHeight="50" prefHeight="50" styleClass="sidebar-header">
                 <padding>
-                    <Insets bottom="12" left="16" right="16" top="16" />
+                    <Insets bottom="10" left="14" right="14" top="14" />
                 </padding>
                 <!-- App Name -->
                 <Label style="-fx-text-fill: #ffffff; -fx-font-size: 22px; -fx-font-weight: bold;" text="AegisTalk" />
@@ -21,9 +21,9 @@
             </HBox>
 
             <!-- Search Bar -->
-            <HBox styleClass="search-container">
+            <HBox minHeight="50" prefHeight="50" styleClass="search-container">
                 <padding>
-                    <Insets bottom="12" left="16" right="16" top="8" />
+                    <Insets bottom="10" left="14" right="14" top="8" />
                 </padding>
                 <TextField fx:id="txtSearch" minHeight="40" prefHeight="40" maxHeight="44" promptText="🔍  Tìm kiếm..." styleClass="search-input" HBox.hgrow="ALWAYS" />
             </HBox>
@@ -37,15 +37,15 @@
             </VBox>
 
             <!-- Tabs: Bạn bè - Nhóm - Lời mời -->
-            <HBox alignment="CENTER_LEFT" spacing="8" styleClass="tabs-container">
+            <HBox alignment="CENTER_LEFT" spacing="8" minHeight="48" prefHeight="48" styleClass="tabs-container">
                 <padding>
-                    <Insets bottom="4" left="16" right="16" top="4" />
+                    <Insets bottom="6" left="16" right="16" top="6" />
                 </padding>
-                <ToggleButton fx:id="tabFriends" selected="true" styleClass="tab-button" text="💬 Tất cả" />
-                <ToggleButton fx:id="tabGroups" styleClass="tab-button" text="👥 Nhóm" />
-                <ToggleButton fx:id="tabRequests" styleClass="tab-button" text="📨 Lời mời" />
+                <ToggleButton fx:id="tabFriends" minWidth="110" prefWidth="120" styleClass="tab-button" text="💬 Tất cả" />
+                <ToggleButton fx:id="tabGroups" minWidth="100" prefWidth="110" styleClass="tab-button" text="👥 Nhóm" />
+                <ToggleButton fx:id="tabRequests" minWidth="140" prefWidth="150" styleClass="tab-button" text="📨 Lời mời" />
                 <Region HBox.hgrow="ALWAYS" />
-                <Button fx:id="btnCreateGroup" onAction="#handleCreateGroup" styleClass="icon-button" text="➕">
+                <Button fx:id="btnCreateGroup" minHeight="36" minWidth="36" prefHeight="36" prefWidth="36" onAction="#handleCreateGroup" styleClass="icon-button" text="➕">
                     <tooltip>
                         <Tooltip text="Tạo nhóm mới" />
                     </tooltip>
@@ -56,29 +56,29 @@
             <ListView fx:id="lstContacts" styleClass="contacts-list" VBox.vgrow="ALWAYS" />
 
             <!-- User Profile Section -->
-            <HBox alignment="CENTER_LEFT" spacing="8" styleClass="user-profile-section">
+            <HBox alignment="CENTER_LEFT" spacing="10" minHeight="75" prefHeight="75" styleClass="user-profile-section">
                 <padding>
-                    <Insets bottom="12" left="16" right="16" top="12" />
+                    <Insets bottom="10" left="14" right="14" top="10" />
                 </padding>
                 <StackPane>
-                    <Circle fx:id="currentUserAvatar" radius="20" />
-                    <Circle radius="6" styleClass="online-indicator" translateX="14" translateY="14" />
+                    <Circle fx:id="currentUserAvatar" radius="22" />
+                    <Circle radius="6" styleClass="online-indicator" translateX="15" translateY="15" />
                 </StackPane>
-                <VBox spacing="2" HBox.hgrow="ALWAYS">
+                <VBox spacing="3" HBox.hgrow="ALWAYS">
                     <Label fx:id="lblCurrentUser" style="-fx-font-size: 14px;" styleClass="chat-name" text="User" />
-                    <Label styleClass="chat-status" text="Đang hoạt động" />
+                    <Label style="-fx-font-size: 12px;" styleClass="chat-status" text="Đang hoạt động" />
                 </VBox>
-                <Button fx:id="btnToggleNotification" onAction="#handleToggleNotification" minHeight="32" minWidth="36" prefHeight="36" prefWidth="40" maxHeight="40" maxWidth="44" styleClass="icon-button" text="🔔">
+                <Button fx:id="btnToggleNotification" onAction="#handleToggleNotification" minHeight="38" minWidth="38" prefHeight="38" prefWidth="38" maxHeight="42" maxWidth="42" styleClass="icon-button" text="🔔">
                     <tooltip>
                         <Tooltip text="Bật/Tắt thông báo" />
                     </tooltip>
                 </Button>
-                <Button fx:id="btnEditProfile" onAction="#handleEditProfile" minHeight="32" minWidth="36" prefHeight="36" prefWidth="40" maxHeight="40" maxWidth="44" styleClass="icon-button" text="✏️">
+                <Button fx:id="btnEditProfile" onAction="#handleEditProfile" minHeight="38" minWidth="38" prefHeight="38" prefWidth="38" maxHeight="42" maxWidth="42" styleClass="icon-button" text="✏️">
                     <tooltip>
                         <Tooltip text="Cập nhật hồ sơ" />
                     </tooltip>
                 </Button>
-                <Button fx:id="btnLogout" onAction="#handleLogout" minHeight="32" minWidth="36" prefHeight="36" prefWidth="40" maxHeight="40" maxWidth="44" styleClass="icon-button" text="🚪">
+                <Button fx:id="btnLogout" onAction="#handleLogout" minHeight="38" minWidth="38" prefHeight="38" prefWidth="38" maxHeight="42" maxWidth="42" styleClass="icon-button" text="🚪">
                     <tooltip>
                         <Tooltip text="Đăng xuất" />
                     </tooltip>
@@ -111,13 +111,13 @@
                 <Region HBox.hgrow="ALWAYS" />
 
                 <!-- Action Buttons -->
-                <HBox spacing="8">
-                    <Button fx:id="btnVideoCall" minHeight="36" minWidth="36" prefHeight="40" prefWidth="40" maxHeight="44" maxWidth="44" styleClass="icon-button" text="📹">
+                <HBox spacing="10">
+                    <Button fx:id="btnVideoCall" minHeight="40" minWidth="40" prefHeight="44" prefWidth="44" maxHeight="48" maxWidth="48" styleClass="icon-button" text="📹">
                         <tooltip>
                             <Tooltip text="Video call" />
                         </tooltip>
                     </Button>
-                    <Button fx:id="btnInfo" minHeight="36" minWidth="36" prefHeight="40" prefWidth="40" maxHeight="44" maxWidth="44" styleClass="icon-button" text="ℹ">
+                    <Button fx:id="btnInfo" minHeight="40" minWidth="40" prefHeight="44" prefWidth="44" maxHeight="48" maxWidth="48" styleClass="icon-button" text="ℹ">
                         <tooltip>
                             <Tooltip text="Thông tin cuộc chat" />
                         </tooltip>
@@ -142,37 +142,30 @@
             </ScrollPane>
 
             <!-- Input Area -->
-            <HBox alignment="CENTER" spacing="8" styleClass="input-area">
+            <HBox alignment="CENTER" spacing="12" styleClass="input-area">
                 <padding>
-                    <Insets bottom="16" left="16" right="16" top="12" />
+                    <Insets bottom="18" left="20" right="20" top="16" />
                 </padding>
 
                 <!-- Attachment Button -->
-                <Button fx:id="btnAttach" onAction="#handleAttachFile" minHeight="36" minWidth="36" prefHeight="40" prefWidth="40" maxHeight="44" maxWidth="44" styleClass="icon-button" text="📎">
+                <Button fx:id="btnAttach" onAction="#handleAttachFile" minHeight="40" minWidth="40" prefHeight="44" prefWidth="44" maxHeight="48" maxWidth="48" styleClass="icon-button" text="📎">
                     <tooltip>
                         <Tooltip text="Đính kèm file" />
                     </tooltip>
                 </Button>
 
                 <!-- Image Button -->
-                <Button fx:id="btnImage" onAction="#handleAttachImage" minHeight="36" minWidth="36" prefHeight="40" prefWidth="40" maxHeight="44" maxWidth="44" styleClass="icon-button" text="🖼️">
+                <Button fx:id="btnImage" onAction="#handleAttachImage" minHeight="40" minWidth="40" prefHeight="44" prefWidth="44" maxHeight="48" maxWidth="48" styleClass="icon-button" text="🖼️">
                     <tooltip>
                         <Tooltip text="Gửi hình ảnh" />
                     </tooltip>
                 </Button>
 
                 <!-- Message Input -->
-                <TextField fx:id="txtMessage" minHeight="40" prefHeight="44" maxHeight="48" promptText="Nhập tin nhắn..." styleClass="message-input" HBox.hgrow="ALWAYS" />
-
-                <!-- Emoji Button -->
-                <Button minHeight="36" minWidth="36" prefHeight="40" prefWidth="40" maxHeight="44" maxWidth="44" styleClass="icon-button" text="😊">
-                    <tooltip>
-                        <Tooltip text="Emoji" />
-                    </tooltip>
-                </Button>
+                <TextField fx:id="txtMessage" minHeight="44" prefHeight="48" maxHeight="52" promptText="Nhập tin nhắn..." styleClass="message-input" HBox.hgrow="ALWAYS" />
 
                 <!-- Send Button -->
-                <Button fx:id="btnSend" minHeight="40" prefHeight="44" maxHeight="48" styleClass="send-button" text="Gửi ➤" />
+                <Button fx:id="btnSend" minHeight="44" prefHeight="48" maxHeight="52" styleClass="send-button" text="Gửi ➤" />
             </HBox>
         </VBox>
     </center>
