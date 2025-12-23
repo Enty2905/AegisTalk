@@ -161,7 +161,7 @@ public class LoginController {
                 try {
                     javafx.fxml.FXMLLoader loader = new javafx.fxml.FXMLLoader(
                             getClass().getResource("/org/example/demo2/ui/view/MainChatView.fxml"));
-                    javafx.scene.Scene scene = new javafx.scene.Scene(loader.load(), 1400, 900);
+                    javafx.scene.Scene scene = new javafx.scene.Scene(loader.load(), 1200, 800);
                     Stage stage = (Stage) btnLogin.getScene().getWindow();
                     stage.setScene(scene);
                     stage.setTitle("AegisTalk - " + user.displayName());
@@ -217,7 +217,7 @@ public class LoginController {
                 try {
                     javafx.fxml.FXMLLoader loader = new javafx.fxml.FXMLLoader(
                             getClass().getResource("/org/example/demo2/ui/view/MainChatView.fxml"));
-                    javafx.scene.Scene scene = new javafx.scene.Scene(loader.load(), 1400, 900);
+                    javafx.scene.Scene scene = new javafx.scene.Scene(loader.load(), 1200, 800);
                     Stage stage = (Stage) btnRegister.getScene().getWindow();
                     stage.setScene(scene);
                     stage.setTitle("AegisTalk - " + user.displayName());
