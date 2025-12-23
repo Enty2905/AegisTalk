@@ -150,6 +150,9 @@ public class MainChatController {
     // Track avatar paths that have been logged to avoid spam
     private final java.util.Set<String> loggedAvatarPaths = new java.util.HashSet<>();
     
+    // Track avatar URLs that have failed to load (to avoid spam error logs)
+    private final java.util.Set<String> failedAvatarUrls = new java.util.HashSet<>();
+    
     // Cache loaded images to avoid reloading
     private final java.util.Map<String, Image> imageCache = new java.util.concurrent.ConcurrentHashMap<>();
     
@@ -3013,15 +3016,26 @@ public class MainChatController {
                 
                 final Image finalImg = img; // Make final for lambda
                 
-                // Thêm error listener để log chi tiết
+                // Thêm error listener để log chi tiết (chỉ log một lần cho mỗi URL)
                 finalImg.errorProperty().addListener((obs, wasError, isError) -> {
-                    if (isError) {
+                    if (isError && !failedAvatarUrls.contains(finalSource)) {
+                        failedAvatarUrls.add(finalSource);
                         Exception exception = finalImg.getException();
                         System.err.println("[MainChatController] Avatar image loading error for: " + finalSource);
                         if (exception != null) {
                             System.err.println("[MainChatController] Exception: " + exception.getMessage());
-                            exception.printStackTrace();
+                            // Chỉ print stack trace cho lần đầu tiên
+                            if (exception.getMessage() != null && exception.getMessage().contains("Connection timed out")) {
+                                System.err.println("[MainChatController] This avatar URL may be using an old IP address. Consider updating the avatar.");
+                            } else {
+                                exception.printStackTrace();
+                            }
                         }
+                        Platform.runLater(() -> {
+                            finalCircle.setFill(Color.web(finalFallbackColor));
+                        });
+                    } else if (isError) {
+                        // URL đã fail trước đó, chỉ set fallback màu không log
                         Platform.runLater(() -> {
                             finalCircle.setFill(Color.web(finalFallbackColor));
                         });
@@ -3030,10 +3044,16 @@ public class MainChatController {
                 
                 // Kiểm tra error ngay sau khi tạo Image
                 if (finalImg.isError()) {
-                    Exception exception = finalImg.getException();
-                    System.err.println("[MainChatController] Avatar image has error immediately, using fallback. Path: " + avatarPath);
-                    if (exception != null) {
-                        System.err.println("[MainChatController] Exception: " + exception.getMessage());
+                    if (!failedAvatarUrls.contains(finalSource)) {
+                        failedAvatarUrls.add(finalSource);
+                        Exception exception = finalImg.getException();
+                        System.err.println("[MainChatController] Avatar image has error immediately, using fallback. Path: " + avatarPath);
+                        if (exception != null) {
+                            System.err.println("[MainChatController] Exception: " + exception.getMessage());
+                            if (exception.getMessage() != null && exception.getMessage().contains("Connection timed out")) {
+                                System.err.println("[MainChatController] This avatar URL may be using an old IP address. Consider updating the avatar.");
+                            }
+                        }
                     }
                     finalCircle.setFill(Color.web(finalFallbackColor));
                     return;
@@ -3045,10 +3065,16 @@ public class MainChatController {
                         if (newVal.doubleValue() >= 1.0) {
                             Platform.runLater(() -> {
                                 if (finalImg.isError()) {
-                                    Exception exception = finalImg.getException();
-                                    System.err.println("[MainChatController] Avatar image failed to load: " + finalSource);
-                                    if (exception != null) {
-                                        System.err.println("[MainChatController] Exception: " + exception.getMessage());
+                                    if (!failedAvatarUrls.contains(finalSource)) {
+                                        failedAvatarUrls.add(finalSource);
+                                        Exception exception = finalImg.getException();
+                                        System.err.println("[MainChatController] Avatar image failed to load: " + finalSource);
+                                        if (exception != null) {
+                                            System.err.println("[MainChatController] Exception: " + exception.getMessage());
+                                            if (exception.getMessage() != null && exception.getMessage().contains("Connection timed out")) {
+                                                System.err.println("[MainChatController] This avatar URL may be using an old IP address. Consider updating the avatar.");
+                                            }
+                                        }
                                     }
                                     finalCircle.setFill(Color.web(finalFallbackColor));
                                 } else {
@@ -3061,10 +3087,16 @@ public class MainChatController {
                 } else {
                     // Image đã load xong
                     if (finalImg.isError()) {
-                        Exception exception = finalImg.getException();
-                        System.err.println("[MainChatController] Avatar image has error after load, using fallback. Path: " + avatarPath);
-                        if (exception != null) {
-                            System.err.println("[MainChatController] Exception: " + exception.getMessage());
+                        if (!failedAvatarUrls.contains(finalSource)) {
+                            failedAvatarUrls.add(finalSource);
+                            Exception exception = finalImg.getException();
+                            System.err.println("[MainChatController] Avatar image has error after load, using fallback. Path: " + avatarPath);
+                            if (exception != null) {
+                                System.err.println("[MainChatController] Exception: " + exception.getMessage());
+                                if (exception.getMessage() != null && exception.getMessage().contains("Connection timed out")) {
+                                    System.err.println("[MainChatController] This avatar URL may be using an old IP address. Consider updating the avatar.");
+                                }
+                            }
                         }
                         finalCircle.setFill(Color.web(finalFallbackColor));
                     } else {
@@ -3113,15 +3145,39 @@ public class MainChatController {
     }
     
     /**
-     * Normalize avatar URL: thay localhost bằng SERVER_HOST để hoạt động trên máy khác.
+     * Normalize avatar URL: thay localhost và các IP cũ bằng SERVER_HOST để hoạt động trên máy khác.
+     * Nếu URL chứa IP khác với SERVER_HOST hiện tại, sẽ thay thế để tránh lỗi connection timeout.
      */
     private String normalizeAvatarUrl(String url) {
         if (url == null || url.isBlank()) {
             return url;
         }
-        // Thay localhost bằng SERVER_HOST trong URL
-        String normalized = url.replace("http://localhost:", "http://" + org.example.demo2.config.ServerConfig.SERVER_HOST + ":");
-        normalized = normalized.replace("https://localhost:", "https://" + org.example.demo2.config.ServerConfig.SERVER_HOST + ":");
+        String serverHost = org.example.demo2.config.ServerConfig.SERVER_HOST;
+        String fileServerPort = String.valueOf(org.example.demo2.config.ServerConfig.FILE_SERVER_PORT);
+        
+        // Thay localhost bằng SERVER_HOST
+        String normalized = url.replace("http://localhost:", "http://" + serverHost + ":");
+        normalized = normalized.replace("https://localhost:", "https://" + serverHost + ":");
+        
+        // Thay thế các IP cũ (không phải localhost và không phải SERVER_HOST hiện tại) bằng SERVER_HOST
+        // Pattern: http://IP:PORT/ hoặc https://IP:PORT/
+        java.util.regex.Pattern ipPattern = java.util.regex.Pattern.compile(
+            "(https?://)([0-9]{1,3}\\.[0-9]{1,3}\\.[0-9]{1,3}\\.[0-9]{1,3})(:[0-9]+)(/.*)?"
+        );
+        java.util.regex.Matcher matcher = ipPattern.matcher(normalized);
+        if (matcher.find()) {
+            String protocol = matcher.group(1);
+            String ip = matcher.group(2);
+            String port = matcher.group(3);
+            String path = matcher.group(4) != null ? matcher.group(4) : "";
+            
+            // Nếu IP không phải localhost và không phải SERVER_HOST hiện tại, thay thế
+            if (!ip.equals("127.0.0.1") && !ip.equals("localhost") && !ip.equals(serverHost)) {
+                normalized = protocol + serverHost + port + path;
+                System.out.println("[MainChatController] Normalized avatar URL from old IP " + ip + " to " + serverHost + ": " + normalized);
+            }
+        }
+        
         return normalized;
     }
     
