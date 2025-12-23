@@ -150,6 +150,9 @@ public class MainChatController {
     // Track avatar paths that have been logged to avoid spam
     private final java.util.Set<String> loggedAvatarPaths = new java.util.HashSet<>();
     
+    // Cache loaded images to avoid reloading
+    private final java.util.Map<String, Image> imageCache = new java.util.concurrent.ConcurrentHashMap<>();
+    
     @FXML
     private void initialize() {
         try {
@@ -2889,7 +2892,11 @@ public class MainChatController {
                 if (avatarPath.startsWith("http://") || avatarPath.startsWith("https://")) {
                     // URL - normalize localhost thành SERVER_HOST
                     source = normalizeAvatarUrl(avatarPath);
-                    System.out.println("[MainChatController] Loading avatar from URL: " + source);
+                    // Chỉ log lần đầu tiên cho mỗi URL
+                    if (!loggedAvatarPaths.contains(source)) {
+                        loggedAvatarPaths.add(source);
+                        System.out.println("[MainChatController] Loading avatar from URL: " + source);
+                    }
                 } else {
                     // File path - tìm file trong thư mục chung hoặc absolute path
                     File file = getAvatarFile(avatarPath);
@@ -2909,12 +2916,45 @@ public class MainChatController {
                     }
                 }
                 
-                // Load image với background loading
-                Image img = new Image(source, circle.getRadius() * 2, circle.getRadius() * 2, true, true, true);
+                // Kiểm tra cache trước
+                Image img = imageCache.get(source);
+                if (img == null || img.isError()) {
+                    // Load image với background loading
+                    img = new Image(source, circle.getRadius() * 2, circle.getRadius() * 2, true, true, true);
+                    // Cache image nếu load thành công
+                    img.progressProperty().addListener((obs, oldVal, newVal) -> {
+                        if (newVal.doubleValue() >= 1.0 && !img.isError()) {
+                            imageCache.put(source, img);
+                        }
+                    });
+                    // Cache ngay nếu đã load xong
+                    if (img.getProgress() >= 1.0 && !img.isError()) {
+                        imageCache.put(source, img);
+                    }
+                }
+                
+                // Thêm error listener để log chi tiết
+                img.errorProperty().addListener((obs, wasError, isError) -> {
+                    if (isError) {
+                        Exception exception = img.getException();
+                        System.err.println("[MainChatController] Avatar image loading error for: " + source);
+                        if (exception != null) {
+                            System.err.println("[MainChatController] Exception: " + exception.getMessage());
+                            exception.printStackTrace();
+                        }
+                        Platform.runLater(() -> {
+                            circle.setFill(Color.web(fallbackColor));
+                        });
+                    }
+                });
                 
                 // Kiểm tra error ngay sau khi tạo Image
                 if (img.isError()) {
-                    System.err.println("[MainChatController] Avatar image has error, using fallback. Path: " + avatarPath);
+                    Exception exception = img.getException();
+                    System.err.println("[MainChatController] Avatar image has error immediately, using fallback. Path: " + avatarPath);
+                    if (exception != null) {
+                        System.err.println("[MainChatController] Exception: " + exception.getMessage());
+                    }
                     circle.setFill(Color.web(fallbackColor));
                     return;
                 }
@@ -2925,16 +2965,32 @@ public class MainChatController {
                         if (newVal.doubleValue() >= 1.0) {
                             Platform.runLater(() -> {
                                 if (img.isError()) {
+                                    Exception exception = img.getException();
+                                    System.err.println("[MainChatController] Avatar image failed to load: " + source);
+                                    if (exception != null) {
+                                        System.err.println("[MainChatController] Exception: " + exception.getMessage());
+                                    }
                                     circle.setFill(Color.web(fallbackColor));
                                 } else {
                                     circle.setFill(new ImagePattern(img));
+                                    System.out.println("[MainChatController] Avatar loaded successfully: " + source);
                                 }
                             });
                         }
                     });
                 } else {
                     // Image đã load xong
-                    circle.setFill(new ImagePattern(img));
+                    if (img.isError()) {
+                        Exception exception = img.getException();
+                        System.err.println("[MainChatController] Avatar image has error after load, using fallback. Path: " + avatarPath);
+                        if (exception != null) {
+                            System.err.println("[MainChatController] Exception: " + exception.getMessage());
+                        }
+                        circle.setFill(Color.web(fallbackColor));
+                    } else {
+                        circle.setFill(new ImagePattern(img));
+                        System.out.println("[MainChatController] Avatar loaded successfully (already loaded): " + source);
+                    }
                     return;
                 }
             } catch (Exception e) {
