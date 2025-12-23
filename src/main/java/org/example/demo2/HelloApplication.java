@@ -32,6 +32,9 @@ public class HelloApplication extends Application {
 
         stage.setTitle("AegisTalk – Login");
         stage.setScene(scene);
+        // Set minimum size để responsive trên màn hình nhỏ
+        stage.setMinWidth(900);
+        stage.setMinHeight(600);
         stage.show();
     }
 
