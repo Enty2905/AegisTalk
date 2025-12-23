@@ -147,6 +147,9 @@ public class MainChatController {
     private long lastTypingSent = 0L;
     private javafx.animation.Timeline typingTimeline;
     
+    // Track avatar paths that have been logged to avoid spam
+    private final java.util.Set<String> loggedAvatarPaths = new java.util.HashSet<>();
+    
     @FXML
     private void initialize() {
         try {
@@ -1361,13 +1364,51 @@ public class MainChatController {
             List<User> friends = clientService.getFriends(userId);
             friendsList.clear();
             for (User friend : friends) {
-                userCache.put(friend.id(), friend);
-                boolean online = isUserOnline(friend.id());
+                // Thử migrate avatar của bạn bè nếu là file path và file tồn tại
+                User friendToUse = friend;
+                String friendAvatarPath = friend.avatarPath();
+                if (friendAvatarPath != null && !friendAvatarPath.isBlank() && 
+                    !friendAvatarPath.startsWith("http://") && !friendAvatarPath.startsWith("https://")) {
+                    // Avatar là file path, thử migrate (chạy background)
+                    File avatarFile = getAvatarFile(friendAvatarPath);
+                    if (avatarFile != null && avatarFile.exists()) {
+                        // File tồn tại, thử migrate (chạy background, không chặn UI)
+                        javafx.concurrent.Task<User> migrateTask = new javafx.concurrent.Task<User>() {
+                            @Override
+                            protected User call() throws Exception {
+                                try {
+                                    org.example.demo2.service.FileTransferService.FileUploadResult result = 
+                                        fileTransferService.uploadFile(avatarFile, friend.id(), null);
+                                    String avatarUrl = result.getDownloadUrl();
+                                    // Cập nhật avatar URL vào database (cần quyền admin hoặc friend tự update)
+                                    // Tạm thời chỉ update trong userCache để hiển thị
+                                    User updated = new User(friend.id(), friend.username(), friend.displayName(), avatarUrl);
+                                    Platform.runLater(() -> {
+                                        userCache.put(updated.id(), updated);
+                                        // Refresh UI nếu đang hiển thị friend này
+                                        javafx.application.Platform.runLater(() -> {
+                                            loadFriends(); // Refresh để cập nhật avatar
+                                        });
+                                    });
+                                    System.out.println("[MainChatController] Migrated friend avatar: " + friend.displayName() + " -> " + avatarUrl);
+                                    return updated;
+                                } catch (Exception e) {
+                                    System.err.println("[MainChatController] Failed to migrate friend avatar: " + e.getMessage());
+                                    return friend;
+                                }
+                            }
+                        };
+                        new Thread(migrateTask).start();
+                    }
+                }
+                
+                userCache.put(friendToUse.id(), friendToUse);
+                boolean online = isUserOnline(friendToUse.id());
                 // Lấy conversation và tin nhắn cuối cùng
                 Conversation conv = null;
                 ChatMessage lastMsg = null;
                 try {
-                    conv = clientService.getOrCreateDirectConversation(userId, friend.id());
+                    conv = clientService.getOrCreateDirectConversation(userId, friendToUse.id());
                     if (conv != null) {
                         lastMsg = clientService.getLastMessage(conv.id().toString());
                     }
@@ -1376,7 +1417,7 @@ public class MainChatController {
                 }
                 
                 String lastMsgText = lastMsg != null ? lastMsg.text() : null;
-                friendsList.add(new ContactItem(friend, lastMsgText, conv, online));
+                friendsList.add(new ContactItem(friendToUse, lastMsgText, conv, online));
             }
         } catch (RemoteException e) {
             showError("Lỗi tải danh sách bạn bè: " + e.getMessage());
@@ -2857,9 +2898,12 @@ public class MainChatController {
                         System.out.println("[MainChatController] Loading avatar from local file: " + file.getAbsolutePath());
                     } else {
                         // File không tồn tại - có thể là absolute path từ máy khác
-                        // Fallback về màu và log warning
-                        System.err.println("[MainChatController] Avatar file not found (may be from another machine): " + avatarPath);
-                        System.err.println("[MainChatController] This avatar needs to be migrated to URL. Please update profile to upload avatar again.");
+                        // Fallback về màu và log warning (chỉ 1 lần cho mỗi path)
+                        if (!loggedAvatarPaths.contains(avatarPath)) {
+                            loggedAvatarPaths.add(avatarPath);
+                            System.err.println("[MainChatController] Avatar file not found (may be from another machine): " + avatarPath);
+                            System.err.println("[MainChatController] This avatar needs to be migrated to URL. User should upload avatar again via profile dialog.");
+                        }
                         circle.setFill(Color.web(fallbackColor));
                         return;
                     }
