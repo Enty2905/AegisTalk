@@ -2846,9 +2846,9 @@ public class MainChatController {
             try {
                 String source;
                 if (avatarPath.startsWith("http://") || avatarPath.startsWith("https://")) {
-                    // URL - dùng trực tiếp
-                    source = avatarPath;
-                    System.out.println("[MainChatController] Loading avatar from URL: " + avatarPath);
+                    // URL - normalize localhost thành SERVER_HOST
+                    source = normalizeAvatarUrl(avatarPath);
+                    System.out.println("[MainChatController] Loading avatar from URL: " + source);
                 } else {
                     // File path - tìm file trong thư mục chung hoặc absolute path
                     File file = getAvatarFile(avatarPath);
@@ -2930,6 +2930,19 @@ public class MainChatController {
         
         // Trả về relative path: avatars/filename
         return "avatars/" + newFileName;
+    }
+    
+    /**
+     * Normalize avatar URL: thay localhost bằng SERVER_HOST để hoạt động trên máy khác.
+     */
+    private String normalizeAvatarUrl(String url) {
+        if (url == null || url.isBlank()) {
+            return url;
+        }
+        // Thay localhost bằng SERVER_HOST trong URL
+        String normalized = url.replace("http://localhost:", "http://" + org.example.demo2.config.ServerConfig.SERVER_HOST + ":");
+        normalized = normalized.replace("https://localhost:", "https://" + org.example.demo2.config.ServerConfig.SERVER_HOST + ":");
+        return normalized;
     }
     
     /**
