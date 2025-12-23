@@ -163,7 +163,49 @@ public class MainChatController {
         if (lblCurrentUser != null) {
             lblCurrentUser.setText(Session.getDisplayName());
         }
-        applyAvatar(currentUserAvatar, Session.getAvatarPath(), fallbackColorForUser(Session.getUserId()));
+        String currentAvatarPath = Session.getAvatarPath();
+        applyAvatar(currentUserAvatar, currentAvatarPath, fallbackColorForUser(Session.getUserId()));
+        
+        // Tự động migrate avatar cũ (file path) sang URL nếu cần (chạy background)
+        if (currentAvatarPath != null && !currentAvatarPath.isBlank() && 
+            !currentAvatarPath.startsWith("http://") && !currentAvatarPath.startsWith("https://")) {
+            // Avatar cũ là file path, thử migrate sang URL trong background
+            javafx.concurrent.Task<Void> migrateTask = new javafx.concurrent.Task<Void>() {
+                @Override
+                protected Void call() throws Exception {
+                    File avatarFile = getAvatarFile(currentAvatarPath);
+                    if (avatarFile != null && avatarFile.exists()) {
+                        // File tồn tại, upload lên server
+                        try {
+                            org.example.demo2.service.FileTransferService.FileUploadResult result = 
+                                fileTransferService.uploadFile(avatarFile, Session.getUserId(), null);
+                            String avatarUrl = result.getDownloadUrl();
+                            // Tự động cập nhật avatar URL vào database
+                            try {
+                                User updated = clientService.updateProfile(Session.getUserId(), Session.getDisplayName(), avatarUrl);
+                                if (updated != null) {
+                                    Session.setUser(updated.id(), updated.displayName(), updated.avatarPath());
+                                    Platform.runLater(() -> {
+                                        applyAvatar(currentUserAvatar, avatarUrl, fallbackColorForUser(Session.getUserId()));
+                                        loadFriends(); // Refresh để cập nhật avatar cho bạn bè
+                                    });
+                                    System.out.println("[MainChatController] Auto-migrated avatar from file path to URL: " + avatarUrl);
+                                }
+                            } catch (Exception e) {
+                                System.err.println("[MainChatController] Failed to update avatar URL in database: " + e.getMessage());
+                            }
+                        } catch (IOException e) {
+                            System.err.println("[MainChatController] Failed to migrate avatar to server: " + e.getMessage());
+                        }
+                    } else {
+                        System.out.println("[MainChatController] Avatar file not found (may be from another machine): " + currentAvatarPath);
+                        System.out.println("[MainChatController] User needs to upload avatar again via profile dialog");
+                    }
+                    return null;
+                }
+            };
+            new Thread(migrateTask).start();
+        }
         
         // Setup search
         setupSearch();
@@ -309,7 +351,37 @@ public class MainChatController {
         displayNameField.setPromptText("Nhập tên hiển thị");
         displayNameField.setMaxWidth(Double.MAX_VALUE);
         GridPane.setHgrow(displayNameField, Priority.ALWAYS);
-        TextField avatarPathField = new TextField(Session.getAvatarPath() != null ? Session.getAvatarPath() : "");
+        // Kiểm tra và migrate avatar cũ (file path) sang URL nếu cần
+        String currentAvatarPath = Session.getAvatarPath();
+        String avatarPathToUse = currentAvatarPath;
+        if (currentAvatarPath != null && !currentAvatarPath.isBlank() && 
+            !currentAvatarPath.startsWith("http://") && !currentAvatarPath.startsWith("https://")) {
+            // Avatar cũ là file path, thử migrate sang URL
+            File avatarFile = getAvatarFile(currentAvatarPath);
+            if (avatarFile != null && avatarFile.exists()) {
+                // File tồn tại, upload lên server
+                try {
+                    org.example.demo2.service.FileTransferService.FileUploadResult result = 
+                        fileTransferService.uploadFile(avatarFile, Session.getUserId(), null);
+                    avatarPathToUse = result.getDownloadUrl();
+                    // Tự động cập nhật avatar URL vào database
+                    try {
+                        User updated = clientService.updateProfile(Session.getUserId(), Session.getDisplayName(), avatarPathToUse);
+                        if (updated != null) {
+                            Session.setUser(updated.id(), updated.displayName(), updated.avatarPath());
+                            System.out.println("[MainChatController] Migrated avatar from file path to URL: " + avatarPathToUse);
+                        }
+                    } catch (Exception e) {
+                        System.err.println("[MainChatController] Failed to update avatar URL in database: " + e.getMessage());
+                    }
+                } catch (IOException e) {
+                    System.err.println("[MainChatController] Failed to migrate avatar to server: " + e.getMessage());
+                    // Giữ nguyên file path nếu upload thất bại
+                }
+            }
+        }
+        
+        TextField avatarPathField = new TextField(avatarPathToUse != null ? avatarPathToUse : "");
         avatarPathField.setPromptText("Đường dẫn file ảnh hoặc URL");
         avatarPathField.setMaxWidth(Double.MAX_VALUE);
         GridPane.setHgrow(avatarPathField, Priority.ALWAYS);
@@ -2776,13 +2848,18 @@ public class MainChatController {
                 if (avatarPath.startsWith("http://") || avatarPath.startsWith("https://")) {
                     // URL - dùng trực tiếp
                     source = avatarPath;
+                    System.out.println("[MainChatController] Loading avatar from URL: " + avatarPath);
                 } else {
                     // File path - tìm file trong thư mục chung hoặc absolute path
                     File file = getAvatarFile(avatarPath);
-                    if (file != null) {
+                    if (file != null && file.exists()) {
                         source = file.toURI().toString();
+                        System.out.println("[MainChatController] Loading avatar from local file: " + file.getAbsolutePath());
                     } else {
-                        // File không tồn tại - fallback về màu
+                        // File không tồn tại - có thể là absolute path từ máy khác
+                        // Fallback về màu và log warning
+                        System.err.println("[MainChatController] Avatar file not found (may be from another machine): " + avatarPath);
+                        System.err.println("[MainChatController] This avatar needs to be migrated to URL. Please update profile to upload avatar again.");
                         circle.setFill(Color.web(fallbackColor));
                         return;
                     }
