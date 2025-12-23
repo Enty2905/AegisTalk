@@ -598,41 +598,102 @@ public class MainChatController {
 
     @FXML
     private void handleUnfriend() {
-        if (currentChat == null || currentChat.user == null) {
-            showError("Chỉ huỷ kết bạn trong chat 1-1");
+        if (currentChat == null) {
             return;
         }
-        Alert confirm = new Alert(Alert.AlertType.CONFIRMATION);
-        confirm.setTitle("Huỷ kết bạn");
-        confirm.setHeaderText("Bạn chắc chắn muốn huỷ kết bạn và xoá toàn bộ tin nhắn?");
-        confirm.setContentText("Thao tác này sẽ xoá lịch sử trò chuyện giữa hai người.");
-        confirm.showAndWait().ifPresent(btn -> {
-            if (btn == ButtonType.OK) {
-                try {
-                    Long me = Session.getUserId();
-                    Long other = currentChat.user.id();
-                    // Xoá tin nhắn cuộc trò chuyện hiện tại
-                    if (currentRoomId != null) {
-                        clientService.deleteConversationMessages(currentRoomId);
+        
+        // Kiểm tra xem đang ở group chat hay direct chat
+        if (currentChat.conversation != null && "GROUP".equals(currentChat.conversation.type())) {
+            // Rời nhóm
+            Alert confirm = new Alert(Alert.AlertType.CONFIRMATION);
+            confirm.setTitle("Rời nhóm");
+            confirm.setHeaderText("Bạn chắc chắn muốn rời nhóm này?");
+            confirm.setContentText("Bạn sẽ không nhận được tin nhắn từ nhóm này nữa.");
+            confirm.showAndWait().ifPresent(btn -> {
+                if (btn == ButtonType.OK) {
+                    try {
+                        Long userId = Session.getUserId();
+                        Long groupId = currentChat.conversation.id();
+                        String userName = Session.getDisplayName();
+                        
+                        // Gửi system message thông báo rời nhóm trước khi rời
+                        String systemMsg = userName + " đã rời nhóm";
+                        ChatMessage systemMessage = new ChatMessage(
+                            groupId.toString(),
+                            "System",
+                            org.example.demo2.model.MessageType.SYSTEM,
+                            systemMsg,
+                            null,
+                            System.currentTimeMillis()
+                        );
+                        
+                        // Lưu vào database
+                        clientService.saveMessage(systemMessage);
+                        
+                        // Broadcast qua TCP để tất cả thành viên trong nhóm nhận được
+                        try {
+                            if (chatClient != null) {
+                                chatClient.send(systemMessage);
+                            }
+                        } catch (Exception e) {
+                            System.err.println("Failed to broadcast leave group message: " + e.getMessage());
+                        }
+                        
+                        // Rời nhóm
+                        boolean success = clientService.removeMember(groupId, userId, userId);
+                        if (!success) {
+                            showError("Không thể rời nhóm");
+                            return;
+                        }
+                        
+                        // Cập nhật UI
+                        messagesContainer.getChildren().clear();
+                        lblChatName.setText("");
+                        applyStatus(lblChatStatus, "", ONLINE_COLOR);
+                        setStatusIndicator(false);
+                        currentChat = null;
+                        currentRoomId = null;
+                        loadGroups();
+                        showInfo("Đã rời nhóm");
+                    } catch (RemoteException e) {
+                        showError("Lỗi rời nhóm: " + e.getMessage());
                     }
-                    // Huỷ kết bạn 2 chiều
-                    clientService.removeFriend(me, other);
-
-                    // Cập nhật UI
-                    messagesContainer.getChildren().clear();
-                    lblChatName.setText("");
-                    applyStatus(lblChatStatus, "", ONLINE_COLOR);
-                    setStatusIndicator(false);
-                    currentChat = null;
-                    currentRoomId = null;
-                    loadFriends();
-                    loadPendingRequests();
-                    showInfo("Đã huỷ kết bạn và xoá tin nhắn");
-                } catch (RemoteException e) {
-                    showError("Lỗi huỷ kết bạn: " + e.getMessage());
                 }
-            }
-        });
+            });
+        } else if (currentChat.user != null) {
+            // Hủy kết bạn (chat 1-1)
+            Alert confirm = new Alert(Alert.AlertType.CONFIRMATION);
+            confirm.setTitle("Huỷ kết bạn");
+            confirm.setHeaderText("Bạn chắc chắn muốn huỷ kết bạn và xoá toàn bộ tin nhắn?");
+            confirm.setContentText("Thao tác này sẽ xoá lịch sử trò chuyện giữa hai người.");
+            confirm.showAndWait().ifPresent(btn -> {
+                if (btn == ButtonType.OK) {
+                    try {
+                        Long me = Session.getUserId();
+                        Long other = currentChat.user.id();
+                        // Xoá tin nhắn cuộc trò chuyện hiện tại
+                        if (currentRoomId != null) {
+                            clientService.deleteConversationMessages(currentRoomId);
+                        }
+                        // Huỷ kết bạn 2 chiều
+                        clientService.removeFriend(me, other);
+
+                        // Cập nhật UI
+                        messagesContainer.getChildren().clear();
+                        lblChatName.setText("");
+                        applyStatus(lblChatStatus, "", ONLINE_COLOR);
+                        setStatusIndicator(false);
+                        currentChat = null;
+                        currentRoomId = null;
+                        loadFriends();
+                        loadPendingRequests();
+                        showInfo("Đã huỷ kết bạn và xoá tin nhắn");
+                    } catch (RemoteException e) {
+                        showError("Lỗi huỷ kết bạn: " + e.getMessage());
+                    }
+                }
+            });
+        }
     }
 
     @FXML
@@ -2130,6 +2191,12 @@ public class MainChatController {
                 btnAddMember.setVisible(true);
                 btnAddMember.setManaged(true);
             }
+            // Thay đổi nút "Hủy kết bạn" thành "Rời nhóm"
+            if (btnUnfriend != null) {
+                btnUnfriend.setText("Rời nhóm");
+                btnUnfriend.setVisible(true);
+                btnUnfriend.setManaged(true);
+            }
         } else if (currentChat.user != null) {
             // Đang chat 1-1
             if (lblInfoName != null) {
@@ -2143,6 +2210,12 @@ public class MainChatController {
             if (btnAddMember != null) {
                 btnAddMember.setVisible(false);
                 btnAddMember.setManaged(false);
+            }
+            // Hiển thị nút "Hủy kết bạn" cho chat 1-1
+            if (btnUnfriend != null) {
+                btnUnfriend.setText("❌ Huỷ kết bạn");
+                btnUnfriend.setVisible(true);
+                btnUnfriend.setManaged(true);
             }
         }
     }
