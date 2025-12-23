@@ -329,7 +329,15 @@ public class MainChatController {
             );
             File file = chooser.showOpenDialog(btnEditProfile != null ? btnEditProfile.getScene().getWindow() : null);
             if (file != null) {
-                avatarPathField.setText(file.getAbsolutePath());
+                // Copy file vào thư mục avatars và lưu relative path
+                try {
+                    String relativePath = copyAvatarToSharedFolder(file, Session.getUserId());
+                    avatarPathField.setText(relativePath);
+                } catch (IOException ex) {
+                    showError("Không thể copy file avatar: " + ex.getMessage());
+                    // Fallback: dùng absolute path nếu copy thất bại
+                    avatarPathField.setText(file.getAbsolutePath());
+                }
             }
         });
 
@@ -2757,13 +2765,12 @@ public class MainChatController {
                     // URL - dùng trực tiếp
                     source = avatarPath;
                 } else {
-                    // File path - kiểm tra file tồn tại trước
-                    File file = new File(avatarPath);
-                    if (file.exists() && file.isFile()) {
+                    // File path - tìm file trong thư mục chung hoặc absolute path
+                    File file = getAvatarFile(avatarPath);
+                    if (file != null) {
                         source = file.toURI().toString();
                     } else {
-                        // File không tồn tại (có thể là absolute path từ máy khác)
-                        // Fallback về màu ngay lập tức
+                        // File không tồn tại - fallback về màu
                         circle.setFill(Color.web(fallbackColor));
                         return;
                     }
@@ -2805,6 +2812,67 @@ public class MainChatController {
         circle.setFill(Color.web(fallbackColor));
     }
 
+    /**
+     * Copy avatar file vào thư mục chung data/avatars/ và trả về relative path.
+     */
+    private String copyAvatarToSharedFolder(File sourceFile, Long userId) throws IOException {
+        // Tạo thư mục data/avatars nếu chưa có
+        File avatarsDir = new File("data/avatars");
+        if (!avatarsDir.exists()) {
+            avatarsDir.mkdirs();
+        }
+        
+        // Tạo tên file: userId_timestamp.extension
+        String extension = "";
+        String fileName = sourceFile.getName();
+        int lastDot = fileName.lastIndexOf('.');
+        if (lastDot > 0) {
+            extension = fileName.substring(lastDot);
+        }
+        String newFileName = userId + "_" + System.currentTimeMillis() + extension;
+        File destFile = new File(avatarsDir, newFileName);
+        
+        // Copy file
+        java.nio.file.Files.copy(
+            sourceFile.toPath(),
+            destFile.toPath(),
+            java.nio.file.StandardCopyOption.REPLACE_EXISTING
+        );
+        
+        // Trả về relative path: avatars/filename
+        return "avatars/" + newFileName;
+    }
+    
+    /**
+     * Lấy file path từ relative path hoặc absolute path.
+     */
+    private File getAvatarFile(String avatarPath) {
+        if (avatarPath == null || avatarPath.isBlank()) {
+            return null;
+        }
+        
+        // Nếu là URL, return null (sẽ xử lý riêng)
+        if (avatarPath.startsWith("http://") || avatarPath.startsWith("https://")) {
+            return null;
+        }
+        
+        // Nếu là relative path (bắt đầu với "avatars/")
+        if (avatarPath.startsWith("avatars/")) {
+            File file = new File("data/" + avatarPath);
+            if (file.exists() && file.isFile()) {
+                return file;
+            }
+        }
+        
+        // Nếu là absolute path (fallback cho backward compatibility)
+        File file = new File(avatarPath);
+        if (file.exists() && file.isFile()) {
+            return file;
+        }
+        
+        return null;
+    }
+    
     private String fallbackColorForUser(Long userId) {
         if (userId == null || userId <= 0) {
             return "#6366f1";
