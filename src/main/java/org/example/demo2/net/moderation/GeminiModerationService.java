@@ -54,8 +54,7 @@ public class GeminiModerationService {
 
         String lower = text.toLowerCase(Locale.ROOT);
 
-        // Heuristic đơn giản
-        double sexualScore = containsAny(lower, "sex", "porn", "xxx", "nude", "sexy") ? 0.7 : 0.0;
+        double sexualScore = containsAny(lower, "sex", "porn", "xxx", "nude", "sexy" , "c*c") ? 0.7 : 0.0;
         double minorsScore = (lower.contains("child") || lower.contains("kid") || lower.contains("under 18"))
                 && sexualScore > 0 ? 0.9 : 0.0;
         double violenceScore = containsAny(lower, "kill", "murder", "stab", "shoot", "bomb") ? 0.7 : 0.0;

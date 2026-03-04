@@ -12,7 +12,7 @@ public class AegisTalkServerMain {
     public static void main(String[] args) {
         System.out.println("   AegisTalk Server - Starting...");
         System.out.println();
-        
+         
         // 1. RMI Service Server (Auth, Friend, Chat, Group)
         System.out.println("[Main] Starting RMI Service Server...");
         Thread rmiThread = new Thread(() -> {
